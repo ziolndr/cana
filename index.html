@@ -3,349 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#0a0e09">
+  <meta name="theme-color" content="#0f120f">
   <title>CANA — Cannabis Meaning Field</title>
   <meta name="description" content="Live semantic search across real cannabis variety records, ranked by ARBITER.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --bg:#0a0e09;
-      --bg-2:#0e130c;
-      --bg-3:#111710;
-      --ivory:#ece4d0;
-      --ivory-2:rgba(236,228,208,.6);
-      --ivory-3:rgba(236,228,208,.34);
-      --gold:#c9a55f;
-      --gold-2:#e3c98f;
-      --gold-dim:rgba(201,165,95,.5);
-      --line:rgba(201,165,95,.16);
-      --line-2:rgba(236,228,208,.09);
-      --sage:#93a583;
-      --serif:'Cormorant Garamond',Georgia,'Times New Roman',serif;
-      --sans:'Space Grotesk',system-ui,-apple-system,sans-serif;
-      --ease:cubic-bezier(.22,1,.36,1);
-    }
-    *{margin:0;padding:0;box-sizing:border-box}
-    html{color-scheme:dark;scroll-behavior:smooth}
-    body{
-      background:
-        radial-gradient(1100px 640px at 18% -12%, rgba(201,165,95,.065), transparent 60%),
-        radial-gradient(900px 700px at 88% 112%, rgba(83,110,70,.075), transparent 62%),
-        var(--bg);
-      color:var(--ivory);
-      font-family:var(--sans);
-      font-weight:300;
-      -webkit-font-smoothing:antialiased;
-      min-height:100vh;
-    }
-    ::selection{background:rgba(201,165,95,.3);color:var(--ivory)}
-    ::-webkit-scrollbar{width:10px}
-    ::-webkit-scrollbar-track{background:var(--bg)}
-    ::-webkit-scrollbar-thumb{background:rgba(201,165,95,.22);border:3px solid var(--bg);border-radius:8px}
-    button{font-family:inherit;cursor:pointer}
-    .grain{
-      position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.16;mix-blend-mode:overlay;
-      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
-    }
-
-    /* ---------- topbar ---------- */
-    .topbar{
-      position:sticky;top:0;z-index:60;
-      display:flex;align-items:center;justify-content:space-between;gap:24px;
-      padding:20px 48px;
-      background:rgba(10,14,9,.8);
-      -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
-      border-bottom:1px solid var(--line);
-    }
-    .brand-lockup{display:flex;align-items:center;gap:18px;text-decoration:none}
-    .seal{width:42px;height:42px;color:var(--gold);flex:none}
-    .seal circle{stroke:var(--line);fill:none}
-    .seal path{stroke:currentColor;fill:none;stroke-width:1;stroke-linejoin:round;stroke-linecap:round}
-    .wordmark{
-      font-family:var(--serif);font-weight:600;font-size:25px;letter-spacing:.26em;
-      color:var(--ivory);text-decoration:none;line-height:1;
-    }
-    .wordmark i{font-style:normal;color:var(--gold)}
-    .system-mark{
-      display:flex;flex-direction:column;gap:5px;
-      padding-left:18px;border-left:1px solid var(--line-2);
-      font-size:8.5px;letter-spacing:.32em;color:var(--ivory-3);
-    }
-    .system-status{
-      display:flex;align-items:center;gap:12px;
-      font-size:9.5px;letter-spacing:.3em;color:var(--ivory-2);white-space:nowrap;
-    }
-    .system-status::before{
-      content:'';width:5px;height:5px;border-radius:50%;
-      background:var(--sage);box-shadow:0 0 0 0 rgba(147,165,131,.5);
-      animation:pulse 3.2s var(--ease) infinite;
-    }
-    @keyframes pulse{
-      0%{box-shadow:0 0 0 0 rgba(147,165,131,.45)}
-      60%{box-shadow:0 0 0 9px rgba(147,165,131,0)}
-      100%{box-shadow:0 0 0 0 rgba(147,165,131,0)}
-    }
-
-    /* ---------- hero / search ---------- */
-    .search-stage{position:relative;z-index:2;padding:116px 48px 72px}
-    .search-inner{max-width:1180px;margin:0 auto}
-    .eyebrow{
-      display:flex;align-items:center;gap:18px;
-      font-size:9.5px;letter-spacing:.42em;color:var(--gold);
-    }
-    .eyebrow::after{content:'';height:1px;width:72px;background:linear-gradient(90deg,var(--gold-dim),transparent)}
-    h1{
-      margin-top:30px;
-      font-family:var(--serif);font-weight:300;
-      font-size:clamp(46px,7vw,96px);line-height:.98;letter-spacing:.005em;
-    }
-    h1 em{font-style:italic;font-weight:400;color:var(--gold-2)}
-    .subline{margin-top:22px;font-size:9.5px;letter-spacing:.3em;color:var(--ivory-3)}
-
-    .search-form{display:flex;align-items:flex-end;gap:48px;margin-top:64px}
-    .search-control{position:relative;display:block;flex:1;min-width:0}
-    .search-label{display:block;font-size:9.5px;letter-spacing:.3em;color:var(--ivory-3)}
-    #query{
-      width:100%;background:transparent;border:0;outline:none;
-      font-family:var(--serif);font-weight:400;
-      font-size:clamp(26px,3.1vw,40px);line-height:1.2;
-      color:var(--ivory);caret-color:var(--gold);
-      padding:16px 0 20px;
-    }
-    #query::placeholder{color:var(--ivory-3);font-style:italic;font-weight:300}
-    #query::-webkit-search-cancel-button,#query::-webkit-search-decoration{-webkit-appearance:none}
-    .search-control .line{position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--line-2)}
-    .search-control .line b{
-      position:absolute;inset:0;transform:scaleX(0);transform-origin:left;
-      background:linear-gradient(90deg,var(--gold),rgba(227,201,143,.25));
-      transition:transform .8s var(--ease);
-    }
-    .search-control:focus-within .line b{transform:scaleX(1)}
-
-    .type-control{position:relative;display:block;flex:none;min-width:210px;border-bottom:1px solid var(--line-2)}
-    .type-control>span{display:block;font-size:9.5px;letter-spacing:.3em;color:var(--ivory-3)}
-    #typeFilter{
-      -webkit-appearance:none;appearance:none;
-      width:100%;background:transparent;border:0;outline:none;cursor:pointer;
-      font-family:var(--sans);font-weight:300;font-size:11px;letter-spacing:.26em;
-      color:var(--ivory);text-transform:uppercase;
-      padding:22px 26px 22px 0;
-      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23c9a55f' stroke-width='1'/%3E%3C/svg%3E");
-      background-repeat:no-repeat;background-position:right center;
-    }
-    #typeFilter option{background:var(--bg-2);color:var(--ivory);letter-spacing:normal}
-    .type-control:focus-within{border-bottom-color:var(--gold-dim)}
-
-    .examples{display:flex;flex-wrap:wrap;gap:12px;margin-top:38px}
-    .examples button{
-      background:transparent;border:1px solid var(--line-2);border-radius:999px;
-      padding:11px 20px;
-      font-size:9.5px;letter-spacing:.26em;color:var(--ivory-2);
-      transition:border-color .45s ease,color .45s ease,background .45s ease;
-    }
-    .examples button:hover,.examples button:focus-visible{
-      border-color:var(--gold-dim);color:var(--gold-2);background:rgba(201,165,95,.05);outline:none;
-    }
-
-    .search-meta{display:flex;flex-wrap:wrap;align-items:center;margin-top:52px}
-    .search-meta>div{
-      display:flex;align-items:baseline;gap:10px;
-      padding:2px 30px;border-left:1px solid var(--line-2);
-      font-size:9.5px;letter-spacing:.24em;color:var(--ivory-3);
-    }
-    .search-meta>div:first-child{border-left:0;padding-left:0}
-    .live-state{align-items:center!important}
-    .live-state i{width:5px;height:5px;border-radius:50%;background:var(--gold);animation:breathe 2.6s ease-in-out infinite}
-    @keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
-    .query-stats strong{font-size:15px;font-weight:400;letter-spacing:.08em;color:var(--ivory);font-variant-numeric:tabular-nums}
-    .runtime b{font-weight:400;color:var(--ivory-2)}
-    .runtime span{color:var(--gold);font-variant-numeric:tabular-nums}
-
-    /* ---------- field ---------- */
-    .results-head{
-      max-width:1460px;margin:0 auto;padding:0 48px 16px;
-      display:flex;align-items:baseline;justify-content:space-between;gap:20px;
-      font-size:9.5px;letter-spacing:.32em;color:var(--ivory-3);
-    }
-    #fieldNote{color:var(--gold-dim);letter-spacing:.26em}
-    .field-shell{position:relative;z-index:2;max-width:1460px;margin:0 auto;padding:0 48px 110px}
-    .results-grid{
-      display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));
-      gap:1px;background:var(--line-2);border:1px solid var(--line-2);
-    }
-    .results-grid:empty{border:0;background:transparent}
-
-    .card{
-      position:relative;display:flex;flex-direction:column;
-      min-height:252px;padding:32px 32px 26px;
-      background:var(--bg);text-align:left;border:0;
-      opacity:0;transform:translateY(16px);
-      transition:opacity .8s ease var(--d,0ms),transform .8s var(--ease) var(--d,0ms),background .5s ease;
-    }
-    .card.in{opacity:1;transform:none}
-    .card:hover,.card:focus-visible{background:var(--bg-2);outline:none}
-    .card.in:hover{transform:translateY(-3px);transition:opacity .8s ease,transform .5s var(--ease),background .5s ease}
-    .card-top{display:flex;align-items:center;justify-content:space-between;gap:14px}
-    .card .idx{font-size:10px;letter-spacing:.24em;color:var(--gold-dim);font-variant-numeric:tabular-nums}
-    .card .tag{font-size:9px;letter-spacing:.34em;color:var(--gold)}
-    .card .name{
-      margin:20px 0 7px;
-      font-family:var(--serif);font-weight:500;
-      font-size:clamp(26px,2.2vw,31px);line-height:1.04;color:var(--ivory);
-    }
-    .card .lin{font-family:var(--serif);font-style:italic;font-weight:300;font-size:16px;color:var(--ivory-3)}
-    .card .notes{margin-top:auto;padding-top:24px;font-size:9.5px;letter-spacing:.24em;color:var(--ivory-2);line-height:2}
-    .card .notes i{font-style:normal;color:var(--gold-dim);padding:0 4px}
-    .card-foot{
-      display:flex;align-items:center;justify-content:space-between;gap:16px;
-      margin-top:16px;padding-top:16px;border-top:1px solid var(--line-2);
-      font-size:10px;letter-spacing:.18em;color:var(--ivory-3);
-    }
-    .card-foot b{font-weight:400;color:var(--ivory-2);font-variant-numeric:tabular-nums}
-    .coh{display:flex;align-items:center;gap:12px}
-    .coh b{color:var(--gold-2)}
-    .meter{position:relative;width:84px;height:1px;background:var(--line-2)}
-    .meter i{position:absolute;left:0;top:0;bottom:0;background:var(--gold);width:var(--w,0%)}
-
-    .empty{grid-column:1/-1;padding:120px 24px;text-align:center;background:var(--bg)}
-    .empty h3{font-family:var(--serif);font-style:italic;font-weight:300;font-size:32px;color:var(--ivory-2)}
-    .empty p{margin-top:14px;font-size:9.5px;letter-spacing:.3em;color:var(--ivory-3)}
-
-    .loading{
-      padding:44px 0 8px;text-align:center;
-      font-size:9.5px;letter-spacing:.34em;color:var(--ivory-3);
-      animation:breathe 1.8s ease-in-out infinite;
-    }
-    .sentinel{height:1px}
-
-    /* ---------- drawer ---------- */
-    .drawer{position:fixed;inset:0;z-index:100;visibility:hidden;pointer-events:none}
-    .drawer.open{visibility:visible;pointer-events:auto}
-    .drawer-backdrop{
-      position:absolute;inset:0;width:100%;height:100%;border:0;
-      background:rgba(5,8,4,.58);
-      -webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);
-      opacity:0;transition:opacity .5s ease;
-    }
-    .drawer.open .drawer-backdrop{opacity:1}
-    .drawer-panel{
-      position:absolute;top:0;right:0;bottom:0;width:min(620px,100%);
-      background:linear-gradient(180deg,var(--bg-3),var(--bg));
-      border-left:1px solid var(--line);
-      transform:translateX(103%);transition:transform .65s var(--ease);
-      overflow-y:auto;overscroll-behavior:contain;
-    }
-    .drawer.open .drawer-panel{transform:none}
-    .drawer-close{
-      position:sticky;top:20px;z-index:3;
-      display:flex;align-items:center;justify-content:center;
-      width:44px;height:44px;margin:20px 26px 0 auto;
-      border:1px solid var(--line-2);border-radius:999px;
-      background:rgba(10,14,9,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
-      color:var(--ivory-2);font-size:19px;line-height:1;
-      transition:border-color .4s ease,color .4s ease;
-    }
-    .drawer-close:hover,.drawer-close:focus-visible{border-color:var(--gold-dim);color:var(--gold-2);outline:none}
-    #drawerContent{padding:10px 56px 80px}
-    .d-over{font-size:9.5px;letter-spacing:.36em;color:var(--gold)}
-    .d-name{margin:18px 0 8px;font-family:var(--serif);font-weight:500;font-size:clamp(42px,6vw,58px);line-height:1;color:var(--ivory)}
-    .d-lin{font-family:var(--serif);font-style:italic;font-weight:300;font-size:19px;color:var(--ivory-3)}
-    .d-prov{margin-top:16px;font-size:9.5px;letter-spacing:.28em;color:var(--ivory-3)}
-    .d-prov i{font-style:normal;color:var(--ivory-2)}
-    .d-desc{
-      margin:32px 0 38px;
-      font-family:var(--serif);font-weight:300;font-size:21px;line-height:1.62;color:var(--ivory-2);
-    }
-    .d-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line-2);border:1px solid var(--line-2)}
-    .d-stats>div{background:var(--bg-2);padding:20px 20px 18px}
-    .d-stats span{display:block;font-size:8.5px;letter-spacing:.28em;color:var(--ivory-3)}
-    .d-stats b{
-      display:block;margin-top:10px;
-      font-family:var(--serif);font-weight:500;font-size:29px;color:var(--ivory);
-      font-variant-numeric:tabular-nums;
-    }
-    .d-stats .au b{color:var(--gold-2)}
-    .d-sec{margin-top:42px}
-    .d-h{display:flex;align-items:center;gap:18px;font-size:9.5px;letter-spacing:.32em;color:var(--ivory-3)}
-    .d-h::after{content:'';flex:1;height:1px;background:var(--line-2)}
-    .fx{display:flex;align-items:center;gap:20px;padding:13px 0;border-bottom:1px solid var(--line-2)}
-    .fx:last-child{border-bottom:0}
-    .fx span{flex:none;width:132px;font-size:10px;letter-spacing:.22em;color:var(--ivory-2)}
-    .fx .bar{position:relative;flex:1;height:1px;background:var(--line-2)}
-    .fx .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--gold);width:var(--w,0%);transition:width 1s var(--ease)}
-    .d-flav{margin-top:18px;font-size:10.5px;letter-spacing:.26em;color:var(--ivory-2);line-height:2.1}
-    .d-flav i{font-style:normal;color:var(--gold-dim);padding:0 6px}
-    .d-sig{display:block;width:100%;height:40px;margin-top:18px;color:var(--gold)}
-    .d-sig-cap{margin-top:12px;font-size:8.5px;letter-spacing:.3em;color:var(--ivory-3)}
-
-    /* ---------- footer ---------- */
-    .footer{
-      position:relative;z-index:2;
-      display:flex;flex-wrap:wrap;gap:14px 32px;align-items:center;justify-content:space-between;
-      padding:30px 48px 36px;border-top:1px solid var(--line);
-      font-size:8.5px;letter-spacing:.32em;color:var(--ivory-3);
-    }
-
-    @media (max-width:860px){
-      .topbar{padding:16px 20px}
-      .system-mark{display:none}
-      .search-stage{padding:76px 20px 54px}
-      .search-form{flex-direction:column;align-items:stretch;gap:8px;margin-top:48px}
-      .type-control{min-width:0}
-      .search-meta{row-gap:16px}
-      .search-meta>div{padding:2px 18px}
-      .results-head{padding:0 20px 14px}
-      .field-shell{padding:0 20px 84px}
-      .results-grid{grid-template-columns:1fr}
-      #drawerContent{padding:8px 26px 64px}
-      .d-stats{grid-template-columns:1fr 1fr}
-      .footer{padding:26px 20px 32px}
-    }
-    @media (prefers-reduced-motion:reduce){
-      *,*::before,*::after{animation:none!important;transition:none!important}
-      .card{opacity:1;transform:none}
-    }
-  </style>
+  <link rel="stylesheet" href="assets/app.css?v=9">
 </head>
 <body>
-  <div class="grain" aria-hidden="true"></div>
-
   <header class="topbar">
-    <a class="brand-lockup" href="#top" aria-label="CANA home">
-      <svg class="seal" viewBox="0 0 48 48" aria-hidden="true">
-        <circle cx="24" cy="24" r="22"/>
-        <g>
-          <path d="M24 30 C22 24 22 14 24 8 C26 14 26 24 24 30 Z"/>
-          <path d="M24 30 C22.2 26 22.2 18 24 13 C25.8 18 25.8 26 24 30 Z" transform="rotate(27 24 30)"/>
-          <path d="M24 30 C22.2 26 22.2 18 24 13 C25.8 18 25.8 26 24 30 Z" transform="rotate(-27 24 30)"/>
-          <path d="M24 30 C22.2 26 22.2 18 24 13 C25.8 18 25.8 26 24 30 Z" transform="rotate(54 24 30)"/>
-          <path d="M24 30 C22.2 26 22.2 18 24 13 C25.8 18 25.8 26 24 30 Z" transform="rotate(-54 24 30)"/>
-          <path d="M24 30 C22.5 27.4 22.5 21.5 24 17.5 C25.5 21.5 25.5 27.4 24 30 Z" transform="rotate(80 24 30)"/>
-          <path d="M24 30 C22.5 27.4 22.5 21.5 24 17.5 C25.5 21.5 25.5 27.4 24 30 Z" transform="rotate(-80 24 30)"/>
-          <path d="M24 30 L24 37"/>
-        </g>
-      </svg>
-      <span class="wordmark">CANA<i>.</i></span>
-      <span class="system-mark"><span>CANNABIS MEANING FIELD</span><span>ARBITER / 72D</span></span>
-    </a>
+    <div class="brand-lockup">
+      <a class="wordmark" href="#top" aria-label="CANA home">
+        <svg viewBox="0 0 204 48" role="img" aria-label="CANA">
+          <path d="M40 7H10V41H40 M52 41L65 7H79L92 41 M58 28H86 M106 41V7L137 41V7 M150 41L163 7H177L190 41 M156 28H184"/>
+          <circle cx="199" cy="40" r="3"/>
+        </svg>
+      </a>
+      <div class="system-mark"><span>CANNABIS MEANING FIELD</span><span>ARBITER / 72D</span></div>
+    </div>
     <div class="system-status" id="connection">LOADING FIELD</div>
   </header>
 
   <main id="top">
     <section class="search-stage" aria-label="Search CANA">
       <div class="search-inner">
-        <div class="eyebrow">ARBITER SEMANTIC FIELD — 72 DIMENSIONS</div>
-        <h1>Search cannabis<br>by <em>meaning.</em></h1>
-        <div class="subline">LIVE COHERENCE RANKING ACROSS THE VARIETY CANON</div>
-
         <form id="searchForm" class="search-form" autocomplete="off">
           <label class="search-control" for="query">
             <span class="search-label">SEARCH BY STRAIN, STATE, FLAVOR, OR CONTEXT</span>
-            <input id="query" name="query" type="search" spellcheck="false" autofocus
-                   placeholder="clear-headed, citrus, social, evening">
-            <span class="line" aria-hidden="true"><b></b></span>
+            <input id="query" name="query" type="search" spellcheck="false" autofocus placeholder="clear-headed, citrus, social, evening">
           </label>
           <label class="type-control" for="typeFilter">
             <span>FILTER</span>
@@ -361,26 +44,19 @@
             </select>
           </label>
         </form>
-
-        <div class="examples" aria-label="Example searches">
-          <button type="button" data-query="blue dream">BLUE DREAM</button>
-          <button type="button" data-query="creative and social">CREATIVE + SOCIAL</button>
-          <button type="button" data-query="citrus and energetic">CITRUS + ENERGY</button>
-          <button type="button" data-query="calm without sleepiness">CALM / CLEAR</button>
-        </div>
-
         <div class="search-meta">
           <div class="live-state"><i></i><span id="liveText">READY</span></div>
           <div class="query-stats"><strong id="count">0</strong><span id="queryLabel">RECORDS</span></div>
           <div class="runtime"><b id="mode">LOADING</b><span id="latency">—</span></div>
+          <div class="examples" aria-label="Example searches">
+            <button type="button" data-query="blue dream">BLUE DREAM</button>
+            <button type="button" data-query="creative and social">CREATIVE + SOCIAL</button>
+            <button type="button" data-query="citrus and energetic">CITRUS + ENERGY</button>
+            <button type="button" data-query="calm without sleepiness">CALM / CLEAR</button>
+          </div>
         </div>
       </div>
     </section>
-
-    <div class="results-head" aria-hidden="true">
-      <span>THE FIELD</span>
-      <span id="fieldNote">CURATED ORDER</span>
-    </div>
 
     <section class="field-shell" aria-label="CANA results">
       <div id="results" class="results-grid" aria-live="polite" aria-busy="false"></div>
@@ -389,280 +65,16 @@
     </section>
   </main>
 
-  <footer class="footer">
-    <span>© 2026 ACTUAL GENERAL INTELLIGENCE</span>
-    <span>CANA — CANNABIS MEANING FIELD</span>
-    <span>FOR ADULTS 21+ WHERE LEGAL</span>
-  </footer>
-
   <aside class="drawer" id="drawer" aria-hidden="true">
     <button class="drawer-backdrop" type="button" data-close aria-label="Close record"></button>
-    <div class="drawer-panel" role="dialog" aria-modal="true" aria-label="Variety record">
+    <div class="drawer-panel">
       <button class="drawer-close" type="button" data-close aria-label="Close record">×</button>
       <div id="drawerContent"></div>
     </div>
   </aside>
 
-  <script>
-  (function(){
-    'use strict';
-
-    /* ------- demo corpus (replace with data/catalog.js) ------- */
-    var CATALOG=[
-      {name:'Blue Dream',type:'Hybrid',lin:'Blueberry × Haze',origin:'Santa Cruz, California',thc:'17–24%',cbd:'<1%',
-       flavors:['Blueberry','Sweet','Herbal'],
-       effects:[['Creative',.86],['Uplifted',.82],['Social',.7],['Relaxed',.62]],
-       desc:'A gentle sativa-leaning cross that pairs soft berry sweetness with a clear, unhurried lift. A daytime standard along the California coast.'},
-      {name:'OG Kush',type:'Hybrid',lin:'Chemdawg × Hindu Kush (attributed)',origin:'Los Angeles, California',thc:'19–26%',cbd:'<1%',
-       flavors:['Pine','Earth','Citrus'],
-       effects:[['Relaxed',.88],['Euphoric',.74],['Hungry',.6],['Sleepy',.42]],
-       desc:'Dense pine and citrus over fuel, with a settled, contented body. The root system of the West Coast canon.'},
-      {name:'Sour Diesel',type:'Sativa',lin:'Chemdawg 91 × Super Skunk',origin:'New York, New York',thc:'18–25%',cbd:'<1%',
-       flavors:['Diesel','Citrus','Pungent'],
-       effects:[['Energetic',.9],['Focused',.76],['Talkative',.72],['Uplifted',.68]],
-       desc:'Sharp fuel and grapefruit with a fast, talkative charge. An East Coast classic that runs bright for hours.'},
-      {name:'Granddaddy Purple',type:'Indica',lin:'Purple Urkle × Big Bud',origin:'San Francisco, California',thc:'17–23%',cbd:'<1%',
-       flavors:['Grape','Berry','Sweet'],
-       effects:[['Sleepy',.9],['Relaxed',.86],['Calm',.78],['Hungry',.5]],
-       desc:'Deep grape and berry with a slow, heavy calm that arrives like dusk. Built for the end of the evening.'},
-      {name:'Jack Herer',type:'Sativa',lin:'Haze × (NL#5 × Shiva Skunk)',origin:'Amsterdam, Netherlands',thc:'18–24%',cbd:'<1%',
-       flavors:['Pine','Spice','Citrus'],
-       effects:[['Clear-headed',.88],['Creative',.8],['Uplifted',.74],['Focused',.7]],
-       desc:'Pine-forward and precise, with a clear head and a light hand. Named for the author and advocate.'},
-      {name:'Gelato',type:'Hybrid',lin:'Sunset Sherbet × Thin Mint GSC',origin:'San Francisco, California',thc:'20–26%',cbd:'<1%',
-       flavors:['Dessert','Citrus','Lavender'],
-       effects:[['Relaxed',.82],['Euphoric',.78],['Social',.66],['Creative',.58]],
-       desc:'A dessert-forward Bay Area cross — creamy citrus, lavender edges, and a plush, rounded calm.'},
-      {name:'Durban Poison',type:'Sativa',lin:'African landrace',origin:'Durban, South Africa',thc:'17–24%',cbd:'<1%',
-       flavors:['Anise','Pine','Sweet'],
-       effects:[['Energetic',.9],['Clear-headed',.84],['Productive',.8],['Uplifted',.66]],
-       desc:'A pure landrace sativa; anise and sweet pine with clean, productive momentum.'},
-      {name:'GSC',type:'Hybrid',lin:'OG Kush × Durban Poison',origin:'San Francisco, California',thc:'20–27%',cbd:'<1%',
-       flavors:['Mint','Sweet','Earth'],
-       effects:[['Euphoric',.86],['Relaxed',.8],['Hungry',.68],['Creative',.54]],
-       desc:'Mint, brown sugar and a full-bodied euphoria. A San Francisco cross that reshaped modern breeding.'},
-      {name:'Northern Lights',type:'Indica',lin:'Afghani × Thai',origin:'Pacific Northwest',thc:'16–22%',cbd:'<1%',
-       flavors:['Earth','Sweet','Pine'],
-       effects:[['Sleepy',.92],['Tranquil',.86],['Relaxed',.84],['Calm',.7]],
-       desc:'Resin-heavy Afghani lineage; sweet earth and near-total quiet. One of the most decorated indicas ever raised.'},
-      {name:'Pineapple Express',type:'Hybrid',lin:'Trainwreck × Hawaiian',origin:'California',thc:'18–24%',cbd:'<1%',
-       flavors:['Pineapple','Tropical','Cedar'],
-       effects:[['Energetic',.8],['Social',.78],['Creative',.7],['Uplifted',.68]],
-       desc:'Tropical fruit over cedar with an easy, sociable energy that stays even.'},
-      {name:'Wedding Cake',type:'Hybrid',lin:'Triangle Kush × Animal Mints',origin:'Los Angeles, California',thc:'21–27%',cbd:'<1%',
-       flavors:['Vanilla','Pepper','Sweet'],
-       effects:[['Relaxed',.86],['Euphoric',.76],['Calm',.7],['Hungry',.54]],
-       desc:'Vanilla and peppered earth with a rich, unhurried body. Indulgent without losing composure.'},
-      {name:'Zkittlez',type:'Indica',lin:'Grape Ape × Grapefruit',origin:'Mendocino, California',thc:'15–21%',cbd:'<1%',
-       flavors:['Candy','Tropical','Berry'],
-       effects:[['Calm',.84],['Happy',.8],['Mellow',.76],['Relaxed',.7]],
-       desc:'Candied tropical fruit with a soft, smiling mellow. Low pressure, high color.'},
-      {name:'Purple Haze',type:'Sativa',lin:'Purple Thai × Haze',origin:'Attributed, 1960s',thc:'16–22%',cbd:'<1%',
-       flavors:['Berry','Spice','Sweet'],
-       effects:[['Euphoric',.86],['Creative',.8],['Energetic',.72],['Social',.6]],
-       desc:'Berry and spice with a bright, painterly euphoria. Sixties provenance, enduring myth.'},
-      {name:'ACDC',type:'CBD',lin:'Cannatonic phenotype',origin:'California',thc:'1–6%',cbd:'14–20%',
-       flavors:['Earth','Wood','Citrus'],
-       effects:[['Clear-headed',.9],['Calm',.86],['Functional',.84],['Relaxed',.6]],
-       desc:'A CBD-dominant Cannatonic phenotype; woody citrus with clarity and almost no altitude.'},
-      {name:'Harlequin',type:'CBD',lin:'Colombian Gold × Thai × Swiss landrace',origin:'California',thc:'4–7%',cbd:'8–15%',
-       flavors:['Mango','Herbal','Earth'],
-       effects:[['Alert',.82],['Calm',.8],['Clear-headed',.78],['Relaxed',.64]],
-       desc:'A balanced CBD-forward landrace blend — ripe mango, steady nerves, full function.'},
-      {name:'Cannatonic',type:'CBD',lin:'MK Ultra × G13 Haze',origin:'Barcelona, Spain',thc:'3–7%',cbd:'6–17%',
-       flavors:['Citrus','Earth','Pine'],
-       effects:[['Mellow',.84],['Clear-headed',.8],['Calm',.78],['Relaxed',.66]],
-       desc:'A Spanish-bred CBD pillar; mild citrus-pine and a level, low-THC ease.'}
-    ];
-
-    /* ------- helpers ------- */
-    function $(s){return document.querySelector(s)}
-    var resultsEl=$('#results'),loadingEl=$('#loading'),sentinelEl=$('#sentinel'),
-        drawerEl=$('#drawer'),drawerContent=$('#drawerContent'),
-        queryEl=$('#query'),typeEl=$('#typeFilter'),
-        countEl=$('#count'),labelEl=$('#queryLabel'),liveEl=$('#liveText'),
-        modeEl=$('#mode'),latencyEl=$('#latency'),connEl=$('#connection'),noteEl=$('#fieldNote');
-
-    function hash(str){var h=1779033703^str.length;for(var i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19}return h>>>0}
-    function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;var t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-    function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-
-    CATALOG.forEach(function(r,i){
-      r._i=i;
-      r._hay={
-        name:r.name.toLowerCase(),
-        type:r.type.toLowerCase(),
-        lin:r.lin.toLowerCase(),
-        origin:r.origin.toLowerCase(),
-        flav:r.flavors.join(' ').toLowerCase(),
-        fx:r.effects.map(function(e){return e[0]}).join(' ').toLowerCase(),
-        desc:r.desc.toLowerCase()
-      };
-    });
-
-    /* ------- local coherence ranking (demo — swap for ARBITER app.js) ------- */
-    var STOP={and:1,or:1,the:1,a:1,an:1,of:1,with:1,for:1,in:1,to:1,me:1,i:1,it:1,is:1,that:1,some:1,something:1};
-    var NEG={without:1,no:1,not:1};
-    var W=[['name',5],['flav',3],['fx',3],['type',2.5],['origin',2],['lin',1.5],['desc',1]];
-
-    function tokMatch(hay,t){
-      if(hay.indexOf(t)>-1)return true;
-      if(t.length>4&&hay.indexOf(t.slice(0,4))>-1)return true;
-      return false;
-    }
-    function parse(q){
-      var raw=q.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),out=[],neg=false;
-      for(var i=0;i<raw.length;i++){
-        var t=raw[i];
-        if(NEG[t]){neg=true;continue}
-        if(STOP[t]){continue}
-        out.push({t:t,neg:neg});neg=false;
-      }
-      return out;
-    }
-    function score(rec,toks){
-      var s=0,pos=0;
-      for(var i=0;i<toks.length;i++){
-        var tk=toks[i],ts=0;
-        for(var j=0;j<W.length;j++){if(tokMatch(rec._hay[W[j][0]],tk.t))ts+=W[j][1]}
-        if(tk.neg){s-=ts*.9}else{s+=ts;pos++}
-      }
-      var coh=null;
-      if(pos>0&&s>0){coh=Math.min(.99,.18+.81*Math.min(1,s/(pos*7)))}
-      return{s:s,coh:coh};
-    }
-
-    /* ------- state + render ------- */
-    var state={matches:[],shown:0,PAGE:8,busy:false,queried:false};
-
-    function run(){
-      var t0=performance.now();
-      var toks=parse(queryEl.value),type=typeEl.value;
-      state.queried=toks.length>0;
-      var pool=type==='all'?CATALOG:CATALOG.filter(function(r){return r.type===type});
-      if(state.queried){
-        state.matches=pool.map(function(r){var sc=score(r,toks);return{rec:r,s:sc.s,coh:sc.coh}})
-          .filter(function(m){return m.s>0})
-          .sort(function(a,b){return b.s-a.s||a.rec.name.localeCompare(b.rec.name)});
-      }else{
-        state.matches=pool.map(function(r){return{rec:r,s:0,coh:null}});
-      }
-      state.shown=0;
-      resultsEl.setAttribute('aria-busy','true');
-      resultsEl.innerHTML='';
-      loadingEl.hidden=true;
-      renderMore(true);
-      countEl.textContent=state.matches.length;
-      labelEl.textContent=state.queried?'MATCHES':'RECORDS';
-      liveEl.textContent=state.queried?'RANKED':'READY';
-      noteEl.textContent=state.queried?'RANKED BY SEMANTIC COHERENCE':'CURATED ORDER';
-      latencyEl.textContent=Math.max(1,Math.round(performance.now()-t0))+' MS';
-      resultsEl.setAttribute('aria-busy','false');
-    }
-
-    function cardEl(m,rank){
-      var r=m.rec,el=document.createElement('button');
-      el.type='button';el.className='card';
-      el.style.setProperty('--d',(rank%state.PAGE)*45+'ms');
-      var footRight=m.coh!=null
-        ?'<span class="coh"><span class="meter"><i style="--w:'+Math.round(m.coh*100)+'%"></i></span><b>'+m.coh.toFixed(2)+'</b></span>'
-        :'<span>CBD <b>'+esc(r.cbd)+'</b></span>';
-      el.innerHTML=
-        '<span class="card-top"><span class="idx">Nº '+String(r._i+1).padStart(2,'0')+'</span>'+
-        '<span class="tag">'+esc(r.type.toUpperCase())+'</span></span>'+
-        '<span class="name">'+esc(r.name)+'</span>'+
-        '<span class="lin">'+esc(r.lin)+'</span>'+
-        '<span class="notes">'+r.flavors.map(esc).join('<i>·</i>').toUpperCase()+'</span>'+
-        '<span class="card-foot"><span>THC <b>'+esc(r.thc)+'</b></span>'+footRight+'</span>';
-      el.addEventListener('click',function(){openDrawer(m)});
-      return el;
-    }
-
-    var reveal=new IntersectionObserver(function(entries){
-      entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');reveal.unobserve(e.target)}});
-    },{threshold:.08});
-
-    function renderMore(instant){
-      if(state.shown>=state.matches.length){
-        if(state.matches.length===0){
-          resultsEl.innerHTML='<div class="empty"><h3>Nothing resonates.</h3><p>WIDEN THE FIELD — TRY A FEELING, A FLAVOR, A PLACE</p></div>';
-        }
-        return;
-      }
-      var slice=state.matches.slice(state.shown,state.shown+state.PAGE);
-      slice.forEach(function(m,i){
-        var el=cardEl(m,state.shown+i);
-        resultsEl.appendChild(el);
-        reveal.observe(el);
-      });
-      state.shown+=slice.length;
-    }
-
-    new IntersectionObserver(function(entries){
-      if(!entries[0].isIntersecting||state.busy)return;
-      if(state.shown>=state.matches.length)return;
-      state.busy=true;loadingEl.hidden=false;
-      setTimeout(function(){renderMore();loadingEl.hidden=true;state.busy=false},320);
-    },{rootMargin:'520px'}).observe(sentinelEl);
-
-    /* ------- drawer ------- */
-    function signature(name){
-      var r=rng(hash(name)),parts=[];
-      for(var i=0;i<72;i++){
-        var h=3+r()*27,o=(r()>.86?.55+.45*r():.12+.22*r());
-        parts.push('<rect x="'+(i*4)+'" y="'+(32-h).toFixed(1)+'" width="1.6" height="'+h.toFixed(1)+'" fill="currentColor" opacity="'+o.toFixed(2)+'"/>');
-      }
-      return '<svg class="d-sig" viewBox="0 0 288 32" preserveAspectRatio="none" aria-hidden="true">'+parts.join('')+'</svg>';
-    }
-    function openDrawer(m){
-      var r=m.rec;
-      var third=m.coh!=null
-        ?'<div class="au"><span>COHERENCE</span><b>'+m.coh.toFixed(2)+'</b></div>'
-        :'<div><span>FIELD Nº</span><b>'+String(r._i+1).padStart(2,'0')+'</b></div>';
-      drawerContent.innerHTML=
-        '<div class="d-over">RECORD Nº '+String(r._i+1).padStart(2,'0')+' — '+esc(r.type.toUpperCase())+'</div>'+
-        '<h2 class="d-name">'+esc(r.name)+'</h2>'+
-        '<div class="d-lin">'+esc(r.lin)+'</div>'+
-        '<div class="d-prov">PROVENANCE — <i>'+esc(r.origin.toUpperCase())+'</i></div>'+
-        '<p class="d-desc">'+esc(r.desc)+'</p>'+
-        '<div class="d-stats"><div><span>THC</span><b>'+esc(r.thc)+'</b></div>'+
-        '<div><span>CBD</span><b>'+esc(r.cbd)+'</b></div>'+third+'</div>'+
-        '<div class="d-sec"><div class="d-h">EFFECT PROFILE</div>'+
-        r.effects.map(function(e){return '<div class="fx"><span>'+esc(e[0].toUpperCase())+'</span><span class="bar"><i data-w="'+Math.round(e[1]*100)+'"></i></span></div>'}).join('')+
-        '</div>'+
-        '<div class="d-sec"><div class="d-h">FLAVOR NOTES</div>'+
-        '<div class="d-flav">'+r.flavors.map(esc).join('<i>·</i>').toUpperCase()+'</div></div>'+
-        '<div class="d-sec"><div class="d-h">FIELD SIGNATURE</div>'+signature(r.name)+
-        '<div class="d-sig-cap">72-DIMENSION SEMANTIC POSITION — DETERMINISTIC PER VARIETY</div></div>';
-      drawerEl.classList.add('open');
-      drawerEl.setAttribute('aria-hidden','false');
-      document.body.style.overflow='hidden';
-      requestAnimationFrame(function(){requestAnimationFrame(function(){
-        drawerContent.querySelectorAll('.fx .bar i').forEach(function(b){b.style.setProperty('--w',b.dataset.w+'%')});
-      })});
-      $('.drawer-close').focus({preventScroll:true});
-    }
-    function closeDrawer(){
-      drawerEl.classList.remove('open');
-      drawerEl.setAttribute('aria-hidden','true');
-      document.body.style.overflow='';
-    }
-    drawerEl.addEventListener('click',function(e){if(e.target.closest('[data-close]'))closeDrawer()});
-    document.addEventListener('keydown',function(e){if(e.key==='Escape'&&drawerEl.classList.contains('open'))closeDrawer()});
-
-    /* ------- wiring ------- */
-    var deb;
-    $('#searchForm').addEventListener('submit',function(e){e.preventDefault();run()});
-    queryEl.addEventListener('input',function(){liveEl.textContent='RANKING';clearTimeout(deb);deb=setTimeout(run,200)});
-    typeEl.addEventListener('change',run);
-    document.querySelectorAll('.examples button').forEach(function(b){
-      b.addEventListener('click',function(){queryEl.value=b.dataset.query;queryEl.focus();run()});
-    });
-
-    connEl.textContent='FIELD ACTIVE';
-    modeEl.textContent='LOCAL';
-    run();
-  })();
-  </script>
+  <script src="data/catalog.js?v=9"></script>
+  <script src="data/image_refs.js?v=9"></script>
+  <script src="assets/app.js?v=9"></script>
 </body>
 </html>
