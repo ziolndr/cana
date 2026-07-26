@@ -20,7 +20,7 @@ PID=$!
 trap 'kill "$PID" 2>/dev/null || true' EXIT INT TERM
 for attempt in {1..40}; do
   if curl -fsS "http://127.0.0.1:$PORT/api/manifest" >/dev/null 2>&1; then
-    open "http://127.0.0.1:$PORT/?build=v10"
+    open "http://127.0.0.1:$PORT/?build=v9"
     wait "$PID"
     exit 0
   fi
