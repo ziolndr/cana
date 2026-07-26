@@ -1,0 +1,8 @@
+{
+  "count": 12804,
+  "dim": 72,
+  "source": "OpenTHC Variety Database",
+  "source_url": "https://vdb.openthc.org/download/strains.csv",
+  "built_at": "2026-07-26T18:47:10.100346+00:00",
+  "embed_url": "http://127.0.0.1:8000/v1/embed"
+}

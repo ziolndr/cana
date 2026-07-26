@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0f120f">
+  <title>CANA — Cannabis Meaning Field</title>
+  <meta name="description" content="Live semantic search across real cannabis variety records, ranked by ARBITER.">
+  <link rel="stylesheet" href="assets/app.css?v=9">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-lockup">
+      <a class="wordmark" href="#top" aria-label="CANA home">
+        <svg viewBox="0 0 204 48" role="img" aria-label="CANA">
+          <path d="M40 7H10V41H40 M52 41L65 7H79L92 41 M58 28H86 M106 41V7L137 41V7 M150 41L163 7H177L190 41 M156 28H184"/>
+          <circle cx="199" cy="40" r="3"/>
+        </svg>
+      </a>
+      <div class="system-mark"><span>CANNABIS MEANING FIELD</span><span>ARBITER / 72D</span></div>
+    </div>
+    <div class="system-status" id="connection">LOADING FIELD</div>
+  </header>
+
+  <main id="top">
+    <section class="search-stage" aria-label="Search CANA">
+      <div class="search-inner">
+        <form id="searchForm" class="search-form" autocomplete="off">
+          <label class="search-control" for="query">
+            <span class="search-label">SEARCH BY STRAIN, STATE, FLAVOR, OR CONTEXT</span>
+            <input id="query" name="query" type="search" spellcheck="false" autofocus placeholder="clear-headed, citrus, social, evening">
+          </label>
+          <label class="type-control" for="typeFilter">
+            <span>FILTER</span>
+            <select id="typeFilter" name="type">
+              <option value="all">ALL TYPES</option>
+              <option>Hybrid</option>
+              <option>Indica</option>
+              <option>Sativa</option>
+              <option>Indica/Sativa</option>
+              <option>Sativa/Indica</option>
+              <option>CBD</option>
+              <option>Unclassified</option>
+            </select>
+          </label>
+        </form>
+        <div class="search-meta">
+          <div class="live-state"><i></i><span id="liveText">READY</span></div>
+          <div class="query-stats"><strong id="count">0</strong><span id="queryLabel">RECORDS</span></div>
+          <div class="runtime"><b id="mode">LOADING</b><span id="latency">—</span></div>
+          <div class="examples" aria-label="Example searches">
+            <button type="button" data-query="blue dream">BLUE DREAM</button>
+            <button type="button" data-query="creative and social">CREATIVE + SOCIAL</button>
+            <button type="button" data-query="citrus and energetic">CITRUS + ENERGY</button>
+            <button type="button" data-query="calm without sleepiness">CALM / CLEAR</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="field-shell" aria-label="CANA results">
+      <div id="results" class="results-grid" aria-live="polite" aria-busy="false"></div>
+      <div id="loading" class="loading" hidden>RANKING THE NEXT RECORDS</div>
+      <div id="sentinel" class="sentinel" aria-hidden="true"></div>
+    </section>
+  </main>
+
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <button class="drawer-backdrop" type="button" data-close aria-label="Close record"></button>
+    <div class="drawer-panel">
+      <button class="drawer-close" type="button" data-close aria-label="Close record">×</button>
+      <div id="drawerContent"></div>
+    </div>
+  </aside>
+
+  <script src="data/catalog.js?v=9"></script>
+  <script src="data/image_refs.js?v=9"></script>
+  <script src="assets/app.js?v=9"></script>
+</body>
+</html>
