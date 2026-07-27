@@ -4,3 +4,7 @@
 __pycache__/
 *.py[cod]
 *.log
+data/leafly_cannabis.csv
+data/kushy_strains.csv
+data/lab_chemistry.csv
+field/build_state.json

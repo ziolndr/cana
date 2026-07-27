@@ -1,8 +1,38 @@
 {
+  "schema_version": "cana-profile-v2",
   "count": 12804,
+  "catalog_count": 12804,
+  "semantic_count": 3631,
   "dim": 72,
-  "source": "OpenTHC Variety Database",
-  "source_url": "https://vdb.openthc.org/download/strains.csv",
-  "built_at": "2026-07-26T18:47:10.100346+00:00",
+  "name_embedded": false,
+  "embedded_fields": [
+    "reported effects",
+    "aroma and flavor",
+    "laboratory terpenes",
+    "laboratory cannabinoids",
+    "reported terpenes",
+    "experience description",
+    "lineage",
+    "classification",
+    "breeder/source"
+  ],
+  "coverage": {
+    "effects": 2359,
+    "flavors": 2296,
+    "reported_terpenes": 1,
+    "lab_terpenes": 2030,
+    "lab_cannabinoids": 2250,
+    "descriptions": 2360,
+    "ailments": 1039,
+    "lineage": 613
+  },
+  "sources": [
+    "https://raw.githubusercontent.com/manrajrrs/cannabis-strain-recommender/main/data/cannabis.csv",
+    "https://raw.githubusercontent.com/kushyapp/cannabis-dataset/master/Dataset/Strains/strains-kushy_api.2017-11-14.csv",
+    "https://github.com/MaxValue/Terpene-Profile-Parser-for-Cannabis-Strains/raw/refs/heads/master/results.csv"
+  ],
+  "matching": "conservative normalized exact-name joins; ambiguous numeric-only names rejected",
+  "chemistry": "flower assays preferred; archived assays used only when no flower assays exist",
+  "built_at": "2026-07-27T03:26:17.706939+00:00",
   "embed_url": "http://127.0.0.1:8000/v1/embed"
 }

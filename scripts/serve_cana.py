@@ -215,21 +215,27 @@ class App(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        # CANA_PROFILE_SERVER_V3
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == '/health':
             return self.send_json({
                 'ok': True,
                 'service': 'cana',
                 'count': len(self.server.rows),
+                'semantic_count': self.server.semantic_count,
                 'field_ready': self.server.vectors is not None,
                 'dim': 72 if self.server.vectors is not None else None,
+                'name_embedded': False if self.server.vectors is not None else None,
             })
         if parsed.path == '/api/manifest':
             return self.send_json({
                 'count': len(self.server.rows),
+                'catalog_count': len(self.server.rows),
+                'semantic_count': self.server.semantic_count,
                 'dim': 72 if self.server.vectors is not None else None,
                 'field_ready': self.server.vectors is not None,
-                'mode': 'ARBITER 72D' if self.server.vectors is not None else 'local name index',
+                'name_embedded': False if self.server.vectors is not None else None,
+                'mode': 'ARBITER 72D profile field' if self.server.vectors is not None else 'local name index',
             })
         if parsed.path == '/api/image':
             name = urllib.parse.parse_qs(parsed.query).get('name', [''])[0].strip()
@@ -255,7 +261,7 @@ class App(SimpleHTTPRequestHandler):
         return value
 
     def do_POST(self):
-        if self.path != '/api/search':
+        if urllib.parse.urlparse(self.path).path != '/api/search':
             return self.send_json({'error': 'not found'}, 404)
         started = time.perf_counter()
         try:
@@ -273,31 +279,50 @@ class App(SimpleHTTPRequestHandler):
                     if self.server.rows[int(index)]['type'] == variety_type
                 ], dtype=np.int64)
 
+            normalized_query = normalize_text(query)
+            if normalized_query:
+                exact_indexes = np.asarray([
+                    index for index in indexes
+                    if normalize_text(self.server.rows[int(index)]['name']) == normalized_query
+                ], dtype=np.int64)
+                if len(exact_indexes):
+                    page_indexes = exact_indexes[offset:offset + limit]
+                    return self.send_json({
+                        'results': [{**self.server.rows[int(index)], 'score': None} for index in page_indexes],
+                        'total': len(exact_indexes),
+                        'catalog_total': len(self.server.rows),
+                        'mode': 'catalog exact match',
+                        'elapsed_ms': round((time.perf_counter() - started) * 1000, 1),
+                    })
+
             if self.server.vectors is not None and query:
+                indexes = indexes[self.server.profile_mask[indexes]]
+                if not len(indexes):
+                    return self.send_json({
+                        'results': [],
+                        'total': 0,
+                        'catalog_total': len(self.server.rows),
+                        'mode': 'ARBITER 72D profile field',
+                        'name_embedded': False,
+                        'elapsed_ms': round((time.perf_counter() - started) * 1000, 1),
+                    })
                 query_vector = self.query_vector(query)
                 scores = self.server.vectors[indexes] @ query_vector
-                normalized_query = normalize_text(query)
-                lexical = np.zeros(len(indexes), dtype=np.float32)
-                for position, index in enumerate(indexes):
-                    name = normalize_text(self.server.rows[int(index)]['name'])
-                    if name == normalized_query:
-                        lexical[position] = .18
-                    elif name.startswith(normalized_query):
-                        lexical[position] = .11
-                    elif normalized_query and normalized_query in name:
-                        lexical[position] = .065
-                scores = scores + lexical
                 order = np.argsort(-scores, kind='stable')
-                indexes = indexes[order]
-                scores = scores[order]
+                ranked_indexes = indexes[order]
+                ranked_scores = scores[order]
+                page_indexes = ranked_indexes[offset:offset + limit]
+                page_scores = ranked_scores[offset:offset + limit]
                 page = [
-                    {**self.server.rows[int(index)], 'score': float(scores[offset + position])}
-                    for position, index in enumerate(indexes[offset:offset + limit])
+                    {**self.server.rows[int(index)], 'score': float(score)}
+                    for index, score in zip(page_indexes, page_scores)
                 ]
                 return self.send_json({
                     'results': page,
-                    'total': len(indexes),
-                    'mode': 'ARBITER 72D',
+                    'total': len(ranked_indexes),
+                    'catalog_total': len(self.server.rows),
+                    'mode': 'ARBITER 72D profile field',
+                    'name_embedded': False,
                     'elapsed_ms': round((time.perf_counter() - started) * 1000, 1),
                 })
 
@@ -323,6 +348,7 @@ class App(SimpleHTTPRequestHandler):
             return self.send_json({
                 'results': page,
                 'total': len(scored),
+                'catalog_total': len(self.server.rows),
                 'mode': 'local name index',
                 'elapsed_ms': round((time.perf_counter() - started) * 1000, 1),
             })
@@ -356,20 +382,44 @@ def main():
     featured_priority = {normalize_text(item['name']): index for index, item in enumerate(featured)}
 
     vectors = None
-    if (ROOT / 'field/manifest.json').exists() and (ROOT / 'field/vectors.npy').exists():
-        vectors = np.load(ROOT / 'field/vectors.npy', mmap_mode='r')
-        if vectors.shape != (len(rows), 72):
-            raise SystemExit(f'Field shape {vectors.shape} does not match {(len(rows), 72)}. Rebuild the CANA field.')
+    profile_mask = np.zeros(len(rows), dtype=np.bool_)
+    manifest_path = ROOT / 'field/manifest.json'
+    vectors_path = ROOT / 'field/vectors.npy'
+    mask_path = ROOT / 'field/profile_mask.npy'
+    metadata_path = ROOT / 'field/metadata.jsonl'
+    field_paths = (manifest_path, vectors_path, mask_path, metadata_path)
+
+    if all(path.exists() for path in field_paths):
+        manifest = json.loads(manifest_path.read_text())
+        if manifest.get('schema_version') != 'cana-profile-v2' or manifest.get('name_embedded') is not False:
+            raise SystemExit('Old CANA name-only field detected. Run BUILD_CANA_FIELD.command to rebuild it.')
+        vectors = np.load(vectors_path, mmap_mode='r')
+        profile_mask = np.load(mask_path, mmap_mode='r')
+        metadata_rows = [json.loads(line) for line in metadata_path.read_text(encoding='utf-8').splitlines() if line.strip()]
+        if vectors.shape != (len(rows), 72) or profile_mask.shape != (len(rows),) or len(metadata_rows) != len(rows):
+            raise SystemExit(f'Profile field does not match the {len(rows):,}-record CANA catalog. Rebuild it.')
+        for index, metadata in enumerate(metadata_rows):
+            if str(metadata.get('id')) != str(rows[index]['id']):
+                raise SystemExit(f'CANA metadata order mismatch at record {index:,}. Rebuild the field.')
+            rows[index] = {**rows[index], **metadata, 'id': rows[index]['id'], 'name': rows[index]['name'], 'type': rows[index]['type']}
+    elif any(path.exists() for path in field_paths):
+        raise SystemExit('Incomplete or old CANA field detected. Run BUILD_CANA_FIELD.command to rebuild it.')
 
     os.chdir(ROOT)
     server = ThreadingHTTPServer((args.host, args.port), App)
     server.rows = rows
     server.vectors = vectors
+    server.profile_mask = profile_mask
+    server.semantic_count = int(profile_mask.sum())
     server.embed_url = args.embed_url
     server.featured_priority = featured_priority
     server.vector_cache = LRUCache()
     server.commons_cache = CommonsCache()
-    print(f'CANA · {args.host}:{args.port} · {len(rows):,} records · ' + ('ARBITER 72D' if vectors is not None else 'local name index'), flush=True)
+    print(
+        f'CANA · {args.host}:{args.port} · {len(rows):,} catalog records · '
+        + (f'{int(profile_mask.sum()):,} real profiles · ARBITER 72D · names excluded' if vectors is not None else 'local name index'),
+        flush=True,
+    )
     server.serve_forever()
 
 

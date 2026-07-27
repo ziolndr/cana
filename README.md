@@ -31,3 +31,13 @@ The build verifies an included `field/` first. If the vectors are not committed,
 ## Source notes
 
 See `ATTRIBUTION.md` for image licensing and source information. Variety identities are catalog records, not batch-level chemical claims.
+
+## Semantic profile field
+
+- The 12,804 OpenTHC identities remain the catalog.
+- Meaning vectors exclude strain names, IDs, and generated name tokens.
+- Only records with matched effects, aroma/flavor, lineage, descriptions, or laboratory terpene/cannabinoid evidence enter semantic ranking.
+- Unprofiled records remain available through exact catalog-name lookup and cannot contaminate meaning results.
+- `field/manifest.json` publishes live profile coverage and certifies `name_embedded: false`.
+
+See `PROFILE_SOURCES.md` for source and matching details.
