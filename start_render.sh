@@ -3,11 +3,7 @@ set -euo pipefail
 
 : "${PORT:?Render did not provide PORT}"
 
-ARBITER_EMBED_URL="${
-  ARBITER_EMBED_URL:-
-  https://creation-api.actualgeneralintelligence.com/v1/embed
-}"
-
+ARBITER_EMBED_URL="${ARBITER_EMBED_URL:-https://creation-api.actualgeneralintelligence.com/v1/embed}"
 export ARBITER_EMBED_URL
 
 echo
@@ -24,35 +20,30 @@ from __future__ import annotations
 import json
 import sys
 import time
-import urllib.error
 import urllib.request
 
 url = sys.argv[1]
 
 payload = json.dumps(
-    {
-        "texts": [
-            "CANA Render startup verification"
-        ]
-    }
+    {"texts": ["CANA Render startup verification"]}
 ).encode("utf-8")
 
 
-def extract_vector(response):
-    if isinstance(response, list):
-        values = response
-    elif isinstance(response, dict):
+def extract_vector(data):
+    if isinstance(data, list):
+        values = data
+    elif isinstance(data, dict):
         values = (
-            response.get("embeddings")
-            or response.get("vectors")
-            or response.get("data")
+            data.get("embeddings")
+            or data.get("vectors")
+            or data.get("data")
         )
     else:
         values = None
 
     if not values:
         raise RuntimeError(
-            f"ARBITER returned no vectors: {response}"
+            f"ARBITER returned no vectors: {data}"
         )
 
     first = values[0]
@@ -65,7 +56,7 @@ def extract_vector(response):
 
     if not isinstance(first, list):
         raise RuntimeError(
-            f"Unexpected vector payload: {response}"
+            f"Unexpected ARBITER response: {data}"
         )
 
     return first
@@ -90,11 +81,11 @@ for attempt in range(1, 31):
             request,
             timeout=20,
         ) as response:
-            body = json.loads(
+            data = json.loads(
                 response.read().decode("utf-8")
             )
 
-        vector = extract_vector(body)
+        vector = extract_vector(data)
 
         if len(vector) != 72:
             raise RuntimeError(
@@ -102,7 +93,7 @@ for attempt in range(1, 31):
             )
 
         print("ARBITER PREFLIGHT: PASS · 72D")
-        raise SystemExit(0)
+        sys.exit(0)
 
     except Exception as error:
         last_error = error
