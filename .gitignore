@@ -1,10 +1,8 @@
-.DS_Store
 .venv/
 .cache/
 __pycache__/
-*.py[cod]
-*.log
-data/leafly_cannabis.csv
-data/kushy_strains.csv
-data/lab_chemistry.csv
+*.pyc
+.DS_Store
+snapshots/
+reports/missing-images.jsonl
 field/build_state.json

@@ -1,5 +1,6 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 set -euo pipefail
-cd "${0:A:h}"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
 ./BUILD_CANA_FIELD.command
 ./START_CANA.command

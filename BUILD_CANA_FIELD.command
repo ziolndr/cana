@@ -2,19 +2,35 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
-
 PYTHON="$(./scripts/ensure_env.sh | tail -n 1)"
-EMBED_URL="${ARBITER_EMBED_URL:-https://creation-api.actualgeneralintelligence.com/v1/embed}"
+EMBED_URL="${ARBITER_EMBED_URL:-https://api.arbiter.traut.ai/public/embed}"
 
-if [[ "${CANA_REFRESH_PROFILES:-0}" == "1" ]]; then
-  "$PYTHON" scripts/prepare_cana_profiles.py --refresh
-elif [[ ! -f data/semantic_profiles.jsonl || ! -f data/profile_stats.json ]]; then
-  "$PYTHON" scripts/prepare_cana_profiles.py
+if [[ "${CANA_RESCRAPE:-0}" == "1" || ! -s data/inventory.jsonl ]]; then
+  "$PYTHON" scripts/scrape_cookies_inventory.py \
+    --site missionvalley.cookies.co \
+    --workers "${CANA_IMAGE_WORKERS:-10}" \
+    --minimum "${CANA_MINIMUM_PRODUCTS:-20}"
+else
+  COUNT="$($PYTHON -c 'print(sum(1 for line in open("data/inventory.jsonl") if line.strip()))')"
+  echo "REUSING FROZEN COOKIES INVENTORY · ${COUNT} products · set CANA_RESCRAPE=1 to refresh"
 fi
 
-rm -f field/manifest.json
-"$PYTHON" scripts/build_cana_field.py --embed-url "$EMBED_URL" --batch "${CANA_EMBED_BATCH:-24}"
-"$PYTHON" scripts/verify_field.py
+"$PYTHON" scripts/test_embedding_policy.py
 
-echo
-echo "CANA PROFILE FIELD READY"
+USE_FREQ="${CANA_USE_FREQ:-1}"
+USE_FREQ_NORMALIZED="$(printf '%s' "$USE_FREQ" | tr '[:upper:]' '[:lower:]')"
+case "$USE_FREQ_NORMALIZED" in
+  0|false|no|off) FREQ_FLAG="--no-use-freq" ;;
+  *) FREQ_FLAG="--use-freq" ;;
+esac
+
+mkdir -p field
+"$PYTHON" scripts/build_inventory_field.py \
+  --embed-url "$EMBED_URL" \
+  --batch "${CANA_EMBED_BATCH:-64}" \
+  --conc "${CANA_EMBED_CONCURRENCY:-2}" \
+  --timeout "${CANA_EMBED_TIMEOUT:-180}" \
+  --attempts "${CANA_EMBED_ATTEMPTS:-6}" \
+  --min-batch "${CANA_EMBED_MIN_BATCH:-8}" \
+  "$FREQ_FLAG"
+"$PYTHON" scripts/verify_inventory_field.py

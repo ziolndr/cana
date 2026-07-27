@@ -1,6 +1,16 @@
 {
-  "completed": 12804,
-  "count": 12804,
+  "schema_version": "cana-cookies-inventory-v2",
+  "source_fingerprint": "0b8839f92b3c161bbcd3d3355ad9c15bd0246ebb0db5699e0923e56cfcffb83b",
+  "count": 8284,
   "dim": 72,
-  "embed_url": "http://127.0.0.1:8000/v1/embed"
+  "embed_url": "https://api.arbiter.traut.ai/public/embed",
+  "use_freq": true,
+  "completed": 8284,
+  "remaining": 0,
+  "updated_at": "2026-07-27T21:51:42.625871+00:00",
+  "batch": 64,
+  "concurrency": 2,
+  "timeout": 180,
+  "attempts": 6,
+  "min_batch": 8
 }

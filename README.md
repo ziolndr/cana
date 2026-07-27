@@ -1,43 +1,62 @@
-# CANA
+# CANA — Cookies Mission Valley Inventory Field
 
-CANA is an image-led cannabis variety meaning field powered by ARBITER.
+One-shot extraction, embedding, freezing, and deployment of the current Cookies Mission Valley shelf into CANA.
 
-## Production behavior
+## What the build does
 
-- 12,804 OpenTHC variety records
-- frozen 72-dimensional ARBITER field
-- live ranking on every input event
-- immediate local preview while the semantic request completes
-- image-backed results and locally bundled open-license cannabis photography
+1. Reads the Jane-synced WordPress REST post types from `missionvalley.cookies.co`.
+2. Downloads all `joint_products` plus brands, categories, strains, effects, terpenes, and cannabinoids.
+3. Keeps the current shelf by excluding only products explicitly marked out of stock.
+4. Deduplicates by Jane product ID, then SKU, then WordPress ID.
+5. Downloads and compresses each real product image to a local WebP file.
+6. Excludes products whose real image cannot be frozen, guaranteeing that every search result has an image.
+7. Constructs semantic text from category, subcategory, format, strain type, description, phenotype, lineage, flavors, effects, and potency.
+8. Strips product-name and brand identity tokens from free text while preserving controlled category, subcategory, format, and strain-type vocabulary such as `flower`, `live resin`, `preroll`, and `hybrid`.
+9. Keeps price, stock state, IDs, and image paths out of the embedded text.
+10. Runs semantic regression tests before embedding.
+11. Builds a normalized `N × 72` ARBITER field.
+12. Verifies the field, clones `ziolndr/cana`, replaces the repository contents, commits, and pushes to `main`.
 
-## Render
+The Render build never scrapes the store and never rebuilds vectors. It only installs dependencies and verifies the frozen committed field.
 
-The repository includes a Render Blueprint at `render.yaml`.
+## One command
 
-- Runtime: Python
-- Build: `./scripts/render_build.sh`
-- Start: `python scripts/serve_cana.py --host 0.0.0.0 --port $PORT --embed-url "$ARBITER_EMBED_URL"`
-- Health check: `/health`
-- Public ARBITER endpoint: `https://creation-api.actualgeneralintelligence.com/v1/embed`
-
-The build verifies an included `field/` first. If the vectors are not committed, Render builds the 12,804-record field through the configured public ARBITER endpoint before starting the service.
-
-## Local launch
+After unzipping:
 
 ```bash
-./START_CANA.command
+./BUILD_COOKIES_AND_PUSH.command
 ```
 
-## Source notes
+Default ARBITER endpoint:
 
-See `ATTRIBUTION.md` for image licensing and source information. Variety identities are catalog records, not batch-level chemical claims.
+```text
+https://api.arbiter.traut.ai/public/embed
+```
 
-## Semantic profile field
+Override it when needed:
 
-- The 12,804 OpenTHC identities remain the catalog.
-- Meaning vectors exclude strain names, IDs, and generated name tokens.
-- Only records with matched effects, aroma/flavor, lineage, descriptions, or laboratory terpene/cannabinoid evidence enter semantic ranking.
-- Unprofiled records remain available through exact catalog-name lookup and cannot contaminate meaning results.
-- `field/manifest.json` publishes live profile coverage and certifies `name_embedded: false`.
+```bash
+ARBITER_EMBED_URL=http://127.0.0.1:8000/v1/embed ./BUILD_COOKIES_AND_PUSH.command
+```
 
-See `PROFILE_SOURCES.md` for source and matching details.
+## Controls
+
+```text
+CANA_EMBED_BATCH=128
+CANA_EMBED_CONCURRENCY=2
+CANA_IMAGE_WORKERS=10
+CANA_MINIMUM_PRODUCTS=20
+```
+
+## Outputs committed to GitHub
+
+```text
+data/inventory.jsonl
+field/vectors.npy
+field/metadata.jsonl
+field/manifest.json
+assets/inventory/*.webp
+data/catalog.js
+```
+
+Raw WordPress snapshots remain under `snapshots/` locally and are excluded from Git.

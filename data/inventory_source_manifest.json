@@ -1,0 +1,10 @@
+{
+  "source": "https://missionvalley.cookies.co",
+  "scraped_at": "2026-07-27T20:25:47.976096+00:00",
+  "raw_products": 9466,
+  "deduped_products": 9466,
+  "searchable_products": 8284,
+  "missing_image_products": 1182,
+  "in_stock_only": true,
+  "image_policy": "Only locally frozen product images are searchable"
+}

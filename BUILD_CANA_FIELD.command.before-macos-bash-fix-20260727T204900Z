@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
+PYTHON="$(./scripts/ensure_env.sh | tail -n 1)"
+EMBED_URL="${ARBITER_EMBED_URL:-https://api.arbiter.traut.ai/public/embed}"
+
+if [[ "${CANA_RESCRAPE:-0}" == "1" || ! -s data/inventory.jsonl ]]; then
+  "$PYTHON" scripts/scrape_cookies_inventory.py \
+    --site missionvalley.cookies.co \
+    --workers "${CANA_IMAGE_WORKERS:-10}" \
+    --minimum "${CANA_MINIMUM_PRODUCTS:-20}"
+else
+  COUNT="$($PYTHON -c 'print(sum(1 for line in open("data/inventory.jsonl") if line.strip()))')"
+  echo "REUSING FROZEN COOKIES INVENTORY · ${COUNT} products · set CANA_RESCRAPE=1 to refresh"
+fi
+
+"$PYTHON" scripts/test_embedding_policy.py
+
+USE_FREQ="${CANA_USE_FREQ:-1}"
+case "${USE_FREQ,,}" in
+  0|false|no|off) FREQ_FLAG="--no-use-freq" ;;
+  *) FREQ_FLAG="--use-freq" ;;
+esac
+
+mkdir -p field
+"$PYTHON" scripts/build_inventory_field.py \
+  --embed-url "$EMBED_URL" \
+  --batch "${CANA_EMBED_BATCH:-64}" \
+  --conc "${CANA_EMBED_CONCURRENCY:-2}" \
+  --timeout "${CANA_EMBED_TIMEOUT:-180}" \
+  --attempts "${CANA_EMBED_ATTEMPTS:-6}" \
+  --min-batch "${CANA_EMBED_MIN_BATCH:-8}" \
+  "$FREQ_FLAG"
+"$PYTHON" scripts/verify_inventory_field.py

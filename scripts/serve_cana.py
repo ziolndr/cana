@@ -2,13 +2,10 @@
 from __future__ import annotations
 
 import argparse
-import csv
-import html
 import json
 import os
 import re
 import time
-import urllib.parse
 import urllib.request
 from collections import OrderedDict
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
@@ -17,53 +14,94 @@ from threading import Lock
 
 import numpy as np
 
+from inventory_data import SCHEMA_VERSION, normalize_text, read_inventory
+
 ROOT = Path(__file__).resolve().parents[1]
-CACHE_DIR = ROOT / '.cache'
-COMMONS_CACHE_PATH = CACHE_DIR / 'commons-images.json'
+
+STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from",
+    "give", "i", "in", "is", "it", "me", "my", "of", "on", "or", "please",
+    "show", "smoke", "some", "something", "that", "the", "this", "to", "want",
+    "weed", "with", "product", "products", "cannabis",
+}
+INTENT_WORDS = {
+    "high", "clean", "clear", "headed", "focused", "focus", "creative", "social",
+    "calm", "relaxed", "relax", "sleep", "sleepy", "energy", "energetic",
+    "uplifted", "happy", "euphoric", "functional", "anxiety", "flavor", "taste",
+    "citrus", "berry", "earthy", "diesel", "body", "cerebral", "fog", "foggy",
+    "talkative", "hungry", "tingly", "motivated", "tropical", "pine", "vape",
+    "flower", "edible", "gummy", "disposable", "pre roll", "concentrate",
+}
+PHRASE_EXPANSIONS = {
+    "clean high": "clear headed focused mentally crisp functional balanced uplifted minimal fog",
+    "clear high": "clear headed focused functional mentally crisp minimal fog",
+    "without anxiety": "calm steady gentle low anxiety",
+    "no anxiety": "calm steady gentle low anxiety",
+    "not sleepy": "alert awake functional minimal sedation",
+    "without sleepiness": "alert awake functional minimal sedation",
+    "for sleep": "sleepy deeply relaxed body relaxation nighttime",
+    "social": "talkative friendly uplifted euphoric comfortable social",
+}
 
 
-def post_json(url: str, payload: dict, timeout: int = 60) -> dict:
+def post_json(url: str, payload: dict, timeout: int = 35) -> dict:
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode(),
-        headers={'content-type': 'application/json', 'user-agent': 'CANA-field/9.0'},
-        method='POST',
+        headers={"content-type": "application/json", "user-agent": "CANA-Cookies-field/1.0"},
+        method="POST",
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode())
 
 
-def get_json(url: str, timeout: int = 10) -> dict:
-    request = urllib.request.Request(url, headers={'user-agent': 'CANA-field/9.0 (open media resolver)'})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode())
-
-
-def vector_from_response(data: dict):
-    for key in ('vectors', 'embeddings', 'data'):
+def vectors_from(data: dict) -> list:
+    for key in ("vectors", "embeddings", "data"):
         value = data.get(key) if isinstance(data, dict) else None
         if isinstance(value, list) and value:
             if isinstance(value[0], dict):
-                return value[0].get('embedding') or value[0].get('vector')
-            return value[0] if isinstance(value[0], list) else value
-    return data.get('embedding') or data.get('vector')
+                return [item.get("embedding") or item.get("vector") for item in value]
+            return value
+    for key in ("embedding", "vector"):
+        value = data.get(key) if isinstance(data, dict) else None
+        if isinstance(value, list):
+            return [value] if (not value or not isinstance(value[0], list)) else value
+    raise ValueError("ARBITER response contained no vectors")
 
 
-def tokens(value: object) -> list[str]:
-    return ''.join(char.lower() if char.isalnum() else ' ' for char in str(value)).split()
+def meaningful_terms(value: str) -> list[str]:
+    return [term for term in normalize_text(value).split() if len(term) >= 3 and term not in STOPWORDS]
 
 
-def normalize_text(value: object) -> str:
-    return ' '.join(tokens(value))
+def expanded_intent(query: str) -> str:
+    cleaned = normalize_text(query)
+    prefixes = (
+        "smoke me for ", "give me ", "find me ", "show me ", "i want ",
+        "i need ", "looking for ", "something for ", "something that ",
+    )
+    for prefix in prefixes:
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):].strip()
+            break
+    cleaned = " ".join(term for term in cleaned.split() if term not in {"a", "an", "the"})
+    expanded = cleaned
+    for phrase, descriptors in PHRASE_EXPANSIONS.items():
+        if phrase in cleaned:
+            expanded += " " + descriptors
+    return expanded.strip()
 
 
-def metadata_value(metadata: dict, key: str) -> str:
-    value = metadata.get(key, {}).get('value', '') if isinstance(metadata, dict) else ''
-    return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', str(value)))).strip()
+def canonicalize_query(query: str) -> str:
+    expanded = expanded_intent(query)
+    return (
+        f"Desired legal cannabis retail product, experience, sensory profile, and format: {expanded}. "
+        "Rank by product category, format, reported effects, flavor, aroma, phenotype, lineage, "
+        "potency description, and experiential context. Ignore accidental word overlap in brand or product names."
+    )
 
 
 class LRUCache:
-    def __init__(self, maxsize: int = 384):
+    def __init__(self, maxsize: int = 512):
         self.maxsize = maxsize
         self.data = OrderedDict()
         self.lock = Lock()
@@ -83,345 +121,262 @@ class LRUCache:
                 self.data.popitem(last=False)
 
 
-class CommonsCache:
-    def __init__(self):
+class EmbedRouter:
+    def __init__(self, configured_url: str, use_freq: bool):
+        candidates = [
+            configured_url,
+            os.getenv("CANA_ARBITER_EMBED_URL"),
+            os.getenv("ARBITER_EMBED_URL"),
+            "https://api.arbiter.traut.ai/public/embed",
+            "http://127.0.0.1:8000/v1/embed",
+        ]
+        self.candidates = []
+        for candidate in candidates:
+            if candidate and candidate not in self.candidates:
+                self.candidates.append(candidate)
+        self.active_url = None
+        self.last_error = None
+        self.use_freq = bool(use_freq)
         self.lock = Lock()
-        self.data = {}
+
+    def embed(self, texts: list[str], timeout: int = 35) -> np.ndarray:
+        with self.lock:
+            ordered = ([self.active_url] if self.active_url else []) + [url for url in self.candidates if url != self.active_url]
+            errors = []
+            for url in ordered:
+                try:
+                    vectors = np.asarray(vectors_from(post_json(url, {"texts": texts, "use_freq": self.use_freq}, timeout=timeout)), dtype=np.float32)
+                    if vectors.ndim == 1:
+                        vectors = vectors[None, :]
+                    if vectors.shape != (len(texts), 72):
+                        raise ValueError(f"ARBITER returned {vectors.shape}; expected {(len(texts), 72)}")
+                    self.active_url = url
+                    self.last_error = None
+                    return vectors
+                except Exception as error:
+                    errors.append(f"{url}: {error}")
+            self.active_url = None
+            self.last_error = " | ".join(errors)[-1600:]
+            raise ConnectionError(self.last_error)
+
+    def probe(self) -> bool:
         try:
-            if COMMONS_CACHE_PATH.exists():
-                self.data = json.loads(COMMONS_CACHE_PATH.read_text())
+            self.embed(["CANA Cookies inventory query probe"], timeout=8)
+            return True
         except Exception:
-            self.data = {}
-
-    def get(self, key):
-        with self.lock:
-            return self.data.get(key, '__missing__')
-
-    def put(self, key, value):
-        with self.lock:
-            self.data[key] = value
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            temp = COMMONS_CACHE_PATH.with_suffix('.tmp')
-            temp.write_text(json.dumps(self.data, ensure_ascii=False, indent=2))
-            temp.replace(COMMONS_CACHE_PATH)
-
-
-def commons_candidate_score(page: dict, name: str) -> int:
-    query = normalize_text(name)
-    terms = [term for term in query.split() if len(term) > 1]
-    title = normalize_text(re.sub(r'^File:', '', str(page.get('title', '')), flags=re.I).rsplit('.', 1)[0])
-    info = (page.get('imageinfo') or [{}])[0]
-    metadata = info.get('extmetadata') or {}
-    description = normalize_text(' '.join([
-        metadata_value(metadata, 'ImageDescription'),
-        metadata_value(metadata, 'ObjectName'),
-        metadata_value(metadata, 'Categories'),
-    ]))
-    haystack = f'{title} {description}'
-    if terms and not all(term in haystack for term in terms):
-        return -1
-    score = 0
-    if title == query:
-        score += 120
-    if query and query in title:
-        score += 55
-    for term in terms:
-        if term in title:
-            score += 10
-        if term in description:
-            score += 2
-    if any(word in haystack for word in ('cannabis', 'marijuana', 'strain', 'cultivar')):
-        score += 28
-    if any(word in haystack for word in ('logo', 'map', 'chart', 'package', 'packaging', 'seed packet')):
-        score -= 40
-    return score
-
-
-def resolve_commons_image(name: str, cache: CommonsCache):
-    key = normalize_text(name)
-    if not key:
-        return None
-    cached = cache.get(key)
-    if cached != '__missing__':
-        return cached
-
-    safe_name = re.sub(r'["\n\r]+', ' ', name).strip()
-    params = {
-        'action': 'query',
-        'format': 'json',
-        'generator': 'search',
-        'gsrsearch': f'intitle:"{safe_name}" cannabis',
-        'gsrnamespace': '6',
-        'gsrlimit': '10',
-        'prop': 'imageinfo',
-        'iiprop': 'url|extmetadata',
-        'iiurlwidth': '900',
-    }
-    url = 'https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(params)
-    try:
-        data = get_json(url, timeout=9)
-        pages = list((data.get('query', {}).get('pages') or {}).values())
-        pages.sort(key=lambda page: commons_candidate_score(page, name), reverse=True)
-        selected = next(
-            (
-                page for page in pages
-                if commons_candidate_score(page, name) >= 30
-                and (page.get('imageinfo') or [{}])[0].get('thumburl')
-            ),
-            None,
-        )
-        if selected is None:
-            cache.put(key, None)
-            return None
-        info = selected['imageinfo'][0]
-        metadata = info.get('extmetadata') or {}
-        result = {
-            'name': name,
-            'image': info.get('thumburl') or info.get('url'),
-            'source': metadata_value(metadata, 'Artist') or metadata_value(metadata, 'Credit') or 'Wikimedia Commons contributor',
-            'license': metadata_value(metadata, 'LicenseShortName') or metadata_value(metadata, 'UsageTerms') or 'See file page',
-            'source_url': info.get('descriptionurl') or 'https://commons.wikimedia.org/wiki/' + urllib.parse.quote(selected.get('title', '').replace(' ', '_')),
-        }
-        cache.put(key, result)
-        return result
-    except Exception:
-        # Network failures are not cached permanently; the next launch can retry.
-        return None
+            return False
 
 
 class App(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
-        if self.path.startswith('/api/'):
+        if self.path.startswith("/api/") or self.path == "/health":
             return
         super().log_message(fmt, *args)
 
     def end_headers(self):
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Cache-Control', 'no-store, max-age=0')
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-store" if self.path.startswith("/api/") else "public, max-age=300")
         super().end_headers()
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header('Access-Control-Allow-Headers', 'content-type')
-        self.send_header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+        self.send_header("Access-Control-Allow-Headers", "content-type")
+        self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
         self.end_headers()
 
     def send_json(self, payload, status=200):
         body = json.dumps(payload, ensure_ascii=False).encode()
         self.send_response(status)
-        self.send_header('content-type', 'application/json; charset=utf-8')
-        self.send_header('content-length', str(len(body)))
+        self.send_header("content-type", "application/json; charset=utf-8")
+        self.send_header("content-length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
+    def manifest_payload(self):
+        categories = sorted({row.get("category") or "Cannabis" for row in self.server.rows})
+        return {
+            "count": len(self.server.rows),
+            "dim": 72,
+            "field_ready": self.server.vectors is not None,
+            "schema_version": self.server.schema_version,
+            "embed_ready": self.server.embed_router.active_url is not None,
+            "embed_url": self.server.embed_router.active_url,
+            "last_embed_error": self.server.embed_router.last_error,
+            "use_freq": self.server.embed_router.use_freq,
+            "source": "Cookies Mission Valley inventory snapshot",
+            "scraped_at": self.server.manifest.get("source_snapshot", {}).get("scraped_at"),
+            "categories": categories,
+            "mode": "ARBITER inventory field" if self.server.vectors is not None else "field rebuild required",
+        }
+
     def do_GET(self):
-        # CANA_PROFILE_SERVER_V3
-        parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == '/health':
-            return self.send_json({
-                'ok': True,
-                'service': 'cana',
-                'count': len(self.server.rows),
-                'semantic_count': self.server.semantic_count,
-                'field_ready': self.server.vectors is not None,
-                'dim': 72 if self.server.vectors is not None else None,
-                'name_embedded': False if self.server.vectors is not None else None,
-            })
-        if parsed.path == '/api/manifest':
-            return self.send_json({
-                'count': len(self.server.rows),
-                'catalog_count': len(self.server.rows),
-                'semantic_count': self.server.semantic_count,
-                'dim': 72 if self.server.vectors is not None else None,
-                'field_ready': self.server.vectors is not None,
-                'name_embedded': False if self.server.vectors is not None else None,
-                'mode': 'ARBITER 72D profile field' if self.server.vectors is not None else 'local name index',
-            })
-        if parsed.path == '/api/image':
-            name = urllib.parse.parse_qs(parsed.query).get('name', [''])[0].strip()
-            if not name:
-                return self.send_json({'image': None}, 400)
-            result = resolve_commons_image(name, self.server.commons_cache)
-            return self.send_json(result or {'image': None})
+        if self.path.split("?", 1)[0] in ("/api/manifest", "/health"):
+            return self.send_json(self.manifest_payload())
         return super().do_GET()
 
-    def query_vector(self, query: str):
+    def query_vector(self, query: str) -> np.ndarray:
         key = normalize_text(query)
         cached = self.server.vector_cache.get(key)
         if cached is not None:
             return cached
-        value = np.asarray(
-            vector_from_response(post_json(self.server.embed_url, {'texts': [query], 'use_freq': True})),
-            dtype=np.float32,
-        )
-        if value.ndim != 1 or value.shape[0] != 72:
-            raise ValueError(f'ARBITER returned vector shape {value.shape}; expected (72,)')
+        value = self.server.embed_router.embed([query])[0]
         value /= max(float(np.linalg.norm(value)), 1e-12)
         self.server.vector_cache.put(key, value)
         return value
 
+    def strict_lookup(self, indexes: np.ndarray, phrase: str, offset: int, limit: int):
+        matches = []
+        for index in indexes:
+            row = self.server.rows[int(index)]
+            names = [normalize_text(row.get("name")), normalize_text(row.get("brand")), normalize_text(row.get("strain"))]
+            weight = 0
+            for value in names:
+                if not value:
+                    continue
+                if value == phrase:
+                    weight = max(weight, 4)
+                elif value.startswith(phrase):
+                    weight = max(weight, 3)
+                elif phrase in value:
+                    weight = max(weight, 2)
+            if weight:
+                matches.append((weight, row))
+        matches.sort(key=lambda item: (-item[0], item[1].get("brand") or "", item[1].get("name") or ""))
+        return [{**row, "score": None, "query_mode": "identity"} for _, row in matches[offset:offset + limit]], len(matches)
+
     def do_POST(self):
-        if urllib.parse.urlparse(self.path).path != '/api/search':
-            return self.send_json({'error': 'not found'}, 404)
+        if self.path != "/api/search":
+            return self.send_json({"error": "not found"}, 404)
         started = time.perf_counter()
         try:
-            length = int(self.headers.get('content-length', '0'))
-            payload = json.loads(self.rfile.read(length) or b'{}')
-            query = str(payload.get('q') or '').strip()
-            variety_type = str(payload.get('type') or 'all')
-            offset = max(0, int(payload.get('offset') or 0))
-            limit = min(100, max(1, int(payload.get('limit') or 50)))
+            length = int(self.headers.get("content-length", "0"))
+            payload = json.loads(self.rfile.read(length) or b"{}")
+            query = str(payload.get("q") or "").strip()
+            category = str(payload.get("category") or payload.get("type") or "all")
+            offset = max(0, int(payload.get("offset") or 0))
+            limit = min(100, max(1, int(payload.get("limit") or 50)))
 
             indexes = np.arange(len(self.server.rows), dtype=np.int64)
-            if variety_type != 'all':
-                indexes = np.asarray([
-                    index for index in indexes
-                    if self.server.rows[int(index)]['type'] == variety_type
-                ], dtype=np.int64)
+            if category != "all":
+                target = normalize_text(category)
+                indexes = np.asarray([index for index in indexes if normalize_text(self.server.rows[int(index)].get("category")) == target], dtype=np.int64)
 
-            normalized_query = normalize_text(query)
-            if normalized_query:
-                exact_indexes = np.asarray([
-                    index for index in indexes
-                    if normalize_text(self.server.rows[int(index)]['name']) == normalized_query
-                ], dtype=np.int64)
-                if len(exact_indexes):
-                    page_indexes = exact_indexes[offset:offset + limit]
-                    return self.send_json({
-                        'results': [{**self.server.rows[int(index)], 'score': None} for index in page_indexes],
-                        'total': len(exact_indexes),
-                        'catalog_total': len(self.server.rows),
-                        'mode': 'catalog exact match',
-                        'elapsed_ms': round((time.perf_counter() - started) * 1000, 1),
-                    })
-
-            if self.server.vectors is not None and query:
-                indexes = indexes[self.server.profile_mask[indexes]]
-                if not len(indexes):
-                    return self.send_json({
-                        'results': [],
-                        'total': 0,
-                        'catalog_total': len(self.server.rows),
-                        'mode': 'ARBITER 72D profile field',
-                        'name_embedded': False,
-                        'elapsed_ms': round((time.perf_counter() - started) * 1000, 1),
-                    })
-                query_vector = self.query_vector(query)
-                scores = self.server.vectors[indexes] @ query_vector
-                order = np.argsort(-scores, kind='stable')
-                ranked_indexes = indexes[order]
-                ranked_scores = scores[order]
-                page_indexes = ranked_indexes[offset:offset + limit]
-                page_scores = ranked_scores[offset:offset + limit]
-                page = [
-                    {**self.server.rows[int(index)], 'score': float(score)}
-                    for index, score in zip(page_indexes, page_scores)
-                ]
+            if not query:
+                ordered = sorted(indexes, key=lambda index: (
+                    self.server.rows[int(index)].get("category") or "",
+                    self.server.rows[int(index)].get("brand") or "",
+                    self.server.rows[int(index)].get("name") or "",
+                ))
+                page = [{**self.server.rows[int(index)], "score": None, "query_mode": "browse"} for index in ordered[offset:offset + limit]]
                 return self.send_json({
-                    'results': page,
-                    'total': len(ranked_indexes),
-                    'catalog_total': len(self.server.rows),
-                    'mode': 'ARBITER 72D profile field',
-                    'name_embedded': False,
-                    'elapsed_ms': round((time.perf_counter() - started) * 1000, 1),
+                    "results": page,
+                    "total": len(ordered),
+                    "mode": "Cookies inventory snapshot",
+                    "query_mode": "browse",
+                    "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
                 })
 
             phrase = normalize_text(query)
-            query_terms = tokens(query)
-            scored = []
-            for index in indexes:
-                row = self.server.rows[int(index)]
-                name = normalize_text(row['name'])
-                score = 80 if phrase and name == phrase else 42 if phrase and name.startswith(phrase) else 25 if phrase and phrase in name else 0
-                if query_terms:
-                    for term in query_terms:
-                        score += 20 if name == term else 10 if name.startswith(term) else 6 if term in name else 0
-                    if not score:
-                        continue
-                priority = self.server.featured_priority.get(name, 99999)
-                scored.append((score, priority, row))
-            scored.sort(key=lambda item: (-item[0], item[1], item[2]['name'].lower()) if query_terms else (item[1], item[2]['name'].lower()))
-            page = [
-                {**row, 'score': min(.999, .45 + score / 100) if query_terms else None}
-                for score, _, row in scored[offset:offset + limit]
-            ]
-            return self.send_json({
-                'results': page,
-                'total': len(scored),
-                'catalog_total': len(self.server.rows),
-                'mode': 'local name index',
-                'elapsed_ms': round((time.perf_counter() - started) * 1000, 1),
-            })
-        except Exception as error:
-            return self.send_json({
-                'error': str(error),
-                'elapsed_ms': round((time.perf_counter() - started) * 1000, 1),
-            }, 500)
+            words = phrase.split()
+            exact_identity = any(
+                phrase in {normalize_text(self.server.rows[int(index)].get("name")), normalize_text(self.server.rows[int(index)].get("brand")), normalize_text(self.server.rows[int(index)].get("strain"))}
+                for index in indexes
+            )
+            has_intent = bool(set(meaningful_terms(query)) & INTENT_WORDS)
+            query_mode = "identity" if exact_identity or (len(words) <= 3 and not has_intent and len(phrase) >= 3) else "outcome"
 
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--host', default=os.getenv('HOST', '127.0.0.1'))
-    parser.add_argument('--port', type=int, default=int(os.getenv('PORT', '8868')))
-    parser.add_argument('--embed-url', default=os.getenv('ARBITER_EMBED_URL', 'http://127.0.0.1:8000/v1/embed'))
-    args = parser.parse_args()
-
-    rows = []
-    with (ROOT / 'data/strains.csv').open(encoding='utf-8-sig', newline='') as handle:
-        for item in csv.DictReader(handle):
-            name = (item.get('Strain') or '').strip()
-            variety_type = (item.get('Type') or '').strip()
-            if name:
-                rows.append({
-                    'id': item['ID'],
-                    'name': name,
-                    'type': variety_type if variety_type not in ('', '-unknown-') else 'Unclassified',
+            if query_mode == "identity":
+                page, total = self.strict_lookup(indexes, phrase, offset, limit)
+                return self.send_json({
+                    "results": page,
+                    "total": total,
+                    "mode": "strict product lookup",
+                    "query_mode": query_mode,
+                    "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
                 })
 
-    featured = json.loads((ROOT / 'data/featured.json').read_text())
-    featured_priority = {normalize_text(item['name']): index for index, item in enumerate(featured)}
+            if self.server.vectors is None:
+                return self.send_json({
+                    "error": "CANA Cookies inventory field is not built.",
+                    "code": "FIELD_REBUILD_REQUIRED",
+                    "message": "Run BUILD_COOKIES_AND_PUSH.command or BUILD_AND_START_CANA.command.",
+                }, 503)
 
-    vectors = None
-    profile_mask = np.zeros(len(rows), dtype=np.bool_)
-    manifest_path = ROOT / 'field/manifest.json'
-    vectors_path = ROOT / 'field/vectors.npy'
-    mask_path = ROOT / 'field/profile_mask.npy'
-    metadata_path = ROOT / 'field/metadata.jsonl'
-    field_paths = (manifest_path, vectors_path, mask_path, metadata_path)
+            query_text = canonicalize_query(query)
+            query_vector = self.query_vector(query_text)
+            scores = self.server.vectors[indexes] @ query_vector
+            descriptor_terms = set(meaningful_terms(query_text))
+            for position, index in enumerate(indexes):
+                row = self.server.rows[int(index)]
+                descriptors = normalize_text(" ".join(
+                    [row.get("category") or "", row.get("subcategory") or "", row.get("form") or "", row.get("strain_type") or "", row.get("phenotype") or "", row.get("lineage") or "", row.get("description") or ""]
+                    + (row.get("effects") or []) + (row.get("flavors") or [])
+                ))
+                overlap = sum(1 for term in descriptor_terms if term in descriptors)
+                scores[position] += min(0.12, overlap * 0.012)
 
-    if all(path.exists() for path in field_paths):
-        manifest = json.loads(manifest_path.read_text())
-        if manifest.get('schema_version') != 'cana-profile-v2' or manifest.get('name_embedded') is not False:
-            raise SystemExit('Old CANA name-only field detected. Run BUILD_CANA_FIELD.command to rebuild it.')
-        vectors = np.load(vectors_path, mmap_mode='r')
-        profile_mask = np.load(mask_path, mmap_mode='r')
-        metadata_rows = [json.loads(line) for line in metadata_path.read_text(encoding='utf-8').splitlines() if line.strip()]
-        if vectors.shape != (len(rows), 72) or profile_mask.shape != (len(rows),) or len(metadata_rows) != len(rows):
-            raise SystemExit(f'Profile field does not match the {len(rows):,}-record CANA catalog. Rebuild it.')
-        for index, metadata in enumerate(metadata_rows):
-            if str(metadata.get('id')) != str(rows[index]['id']):
-                raise SystemExit(f'CANA metadata order mismatch at record {index:,}. Rebuild the field.')
-            rows[index] = {**rows[index], **metadata, 'id': rows[index]['id'], 'name': rows[index]['name'], 'type': rows[index]['type']}
-    elif any(path.exists() for path in field_paths):
-        raise SystemExit('Incomplete or old CANA field detected. Run BUILD_CANA_FIELD.command to rebuild it.')
+            order = np.argsort(-scores, kind="stable")
+            ranked_indexes = indexes[order]
+            ranked_scores = scores[order]
+            page = [
+                {**self.server.rows[int(index)], "score": float(ranked_scores[offset + position]), "query_mode": query_mode}
+                for position, index in enumerate(ranked_indexes[offset:offset + limit])
+            ]
+            return self.send_json({
+                "results": page,
+                "total": len(ranked_indexes),
+                "mode": "ARBITER 72D Cookies inventory",
+                "query_mode": query_mode,
+                "query_text": query_text,
+                "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
+            })
+        except ConnectionError as error:
+            return self.send_json({
+                "error": "ARBITER query embedding endpoint is offline.",
+                "code": "ARBITER_OFFLINE",
+                "message": "CANA refused to replace meaning search with product-name substring matches.",
+                "detail": str(error),
+                "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
+            }, 503)
+        except Exception as error:
+            return self.send_json({"error": str(error), "code": "SEARCH_FAILED"}, 500)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", default=os.getenv("HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "8868")))
+    parser.add_argument("--embed-url", default=os.getenv("ARBITER_EMBED_URL") or "https://api.arbiter.traut.ai/public/embed")
+    args = parser.parse_args()
+
+    rows = read_inventory(ROOT)
+    if not rows:
+        raise SystemExit("CANA inventory is missing. Run the build command.")
+    manifest = json.loads((ROOT / "field/manifest.json").read_text())
+    if manifest.get("schema_version") != SCHEMA_VERSION:
+        raise SystemExit("CANA inventory field schema mismatch. Rebuild.")
+    vectors = np.load(ROOT / "field/vectors.npy", mmap_mode="r")
+    if vectors.shape != (len(rows), 72):
+        raise SystemExit(f"Field shape {vectors.shape} does not match {(len(rows), 72)}")
 
     os.chdir(ROOT)
     server = ThreadingHTTPServer((args.host, args.port), App)
     server.rows = rows
     server.vectors = vectors
-    server.profile_mask = profile_mask
-    server.semantic_count = int(profile_mask.sum())
-    server.embed_url = args.embed_url
-    server.featured_priority = featured_priority
+    server.schema_version = SCHEMA_VERSION
+    server.manifest = manifest
     server.vector_cache = LRUCache()
-    server.commons_cache = CommonsCache()
+    field_use_freq = bool(manifest.get("use_freq", True))
+    server.embed_router = EmbedRouter(args.embed_url, field_use_freq)
+    embed_ready = server.embed_router.probe()
     print(
-        f'CANA · {args.host}:{args.port} · {len(rows):,} catalog records · '
-        + (f'{int(profile_mask.sum()):,} real profiles · ARBITER 72D · names excluded' if vectors is not None else 'local name index'),
+        f"CANA COOKIES · {args.host}:{args.port} · {len(rows):,} image-backed products · 72D · "
+        + (f"QUERY EMBED {server.embed_router.active_url}" if embed_ready else "QUERY EMBED OFFLINE")
+        + f" · use_freq={field_use_freq}",
         flush=True,
     )
     server.serve_forever()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

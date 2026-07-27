@@ -1,13 +1,14 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 set -euo pipefail
-ROOT="${0:A:h:h}"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 if [[ ! -x .venv/bin/python ]]; then
   echo "Creating CANA Python environment..."
   python3 -m venv .venv
 fi
-if ! .venv/bin/python -c 'import numpy' >/dev/null 2>&1; then
-  echo "Installing NumPy into CANA environment..."
-  .venv/bin/python -m pip install --quiet --upgrade pip numpy
+if ! .venv/bin/python -c 'import numpy; from PIL import Image' >/dev/null 2>&1; then
+  echo "Installing CANA dependencies..."
+  .venv/bin/python -m pip install --quiet --upgrade pip
+  .venv/bin/python -m pip install --quiet -r requirements.txt
 fi
-print -r -- "$ROOT/.venv/bin/python"
+printf "%s\n" "$ROOT/.venv/bin/python"

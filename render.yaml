@@ -10,6 +10,6 @@ services:
     autoDeployTrigger: commit
     envVars:
       - key: ARBITER_EMBED_URL
-        value: https://creation-api.actualgeneralintelligence.com/v1/embed
+        value: https://api.arbiter.traut.ai/public/embed
       - key: PYTHON_VERSION
         value: 3.13.5
