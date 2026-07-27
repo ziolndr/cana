@@ -16,6 +16,6 @@ if python scripts/verify_field.py; then
 fi
 
 : "${ARBITER_EMBED_URL:?ARBITER_EMBED_URL must point to the public 72D ARBITER /v1/embed endpoint}"
-rm -f field/vectors.npy field/profile_mask.npy field/metadata.jsonl field/manifest.json field/build_state.json
-python scripts/build_cana_field.py --embed-url "$ARBITER_EMBED_URL" --fresh
+rm -f field/manifest.json
+python scripts/build_cana_field.py --embed-url "$ARBITER_EMBED_URL" --batch "${CANA_EMBED_BATCH:-24}"
 python scripts/verify_field.py

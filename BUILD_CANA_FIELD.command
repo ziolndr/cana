@@ -12,8 +12,8 @@ elif [[ ! -f data/semantic_profiles.jsonl || ! -f data/profile_stats.json ]]; th
   "$PYTHON" scripts/prepare_cana_profiles.py
 fi
 
-rm -f field/vectors.npy field/profile_mask.npy field/metadata.jsonl field/manifest.json field/build_state.json
-"$PYTHON" scripts/build_cana_field.py --embed-url "$EMBED_URL" --fresh
+rm -f field/manifest.json
+"$PYTHON" scripts/build_cana_field.py --embed-url "$EMBED_URL" --batch "${CANA_EMBED_BATCH:-24}"
 "$PYTHON" scripts/verify_field.py
 
 echo

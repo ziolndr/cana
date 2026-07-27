@@ -8,9 +8,11 @@ import json
 import math
 import re
 import statistics
+import shutil
 import time
 import unicodedata
 import urllib.request
+from array import array
 from collections import defaultdict
 from pathlib import Path
 from typing import Iterable
@@ -37,9 +39,9 @@ def download(url: str, path: Path) -> None:
     error: Exception | None = None
     for attempt in range(4):
         try:
-            request = urllib.request.Request(url, headers={"user-agent": "CANA-profile-builder/2.0"})
-            with urllib.request.urlopen(request, timeout=180) as response:
-                temp.write_bytes(response.read())
+            request = urllib.request.Request(url, headers={"user-agent": "CANA-profile-builder/3.0"})
+            with urllib.request.urlopen(request, timeout=300) as response, temp.open("wb") as output:
+                shutil.copyfileobj(response, output, length=1024 * 1024)
             temp.replace(path)
             return
         except Exception as caught:
@@ -133,33 +135,38 @@ def number(value: object) -> float | None:
     return result if math.isfinite(result) and result > 0 else None
 
 
-def preferred_lab_rows(rows: list[dict]) -> list[dict]:
-    flower = [row for row in rows if "flower" in clean(row.get("Sample Type")).lower()]
-    if flower:
-        return flower
-    archived = [row for row in rows if clean(row.get("Sample Type")).lower() in {"archived", ""}]
-    return archived
+def new_lab_bucket() -> dict:
+    return {
+        "sample_count": 0,
+        "labs": set(),
+        "values": defaultdict(lambda: array("f")),
+    }
 
 
-def aggregate_lab_profile(rows: list[dict], terpene_columns: list[str]) -> tuple[list[dict], list[dict], int, list[str]]:
-    rows = preferred_lab_rows(rows)
-    if not rows:
+def add_lab_row(bucket: dict, row: dict, components: list[str]) -> None:
+    bucket["sample_count"] += 1
+    lab = clean(row.get("Database Name"))
+    if lab:
+        bucket["labs"].add(lab)
+    values = bucket["values"]
+    for component in components:
+        parsed = number(row.get(component))
+        if parsed is not None:
+            values[component].append(parsed)
+
+
+def aggregate_lab_profile(entry: dict | None, terpene_columns: list[str]) -> tuple[list[dict], list[dict], int, list[str]]:
+    if not entry:
         return [], [], 0, []
-    values: defaultdict[str, list[float]] = defaultdict(list)
-    labs: set[str] = set()
-    for row in rows:
-        lab = clean(row.get("Database Name"))
-        if lab:
-            labs.add(lab)
-        for component in [*terpene_columns, *sorted(CANNABINOID_COLUMNS)]:
-            parsed = number(row.get(component))
-            if parsed is not None:
-                values[component].append(parsed)
+    chosen = entry["flower"] if entry["flower"]["sample_count"] else entry["archived"]
+    if not chosen["sample_count"]:
+        return [], [], 0, []
+    values = chosen["values"]
 
     def summarize(columns: list[str], limit: int) -> list[dict]:
         summaries = []
         for component in columns:
-            measured = values.get(component, [])
+            measured = values.get(component)
             if not measured:
                 continue
             summaries.append({
@@ -170,7 +177,12 @@ def aggregate_lab_profile(rows: list[dict], terpene_columns: list[str]) -> tuple
         summaries.sort(key=lambda item: (item["median"], item["observations"]), reverse=True)
         return summaries[:limit]
 
-    return summarize(terpene_columns, 10), summarize(sorted(CANNABINOID_COLUMNS), 10), len(rows), sorted(labs)
+    return (
+        summarize(terpene_columns, 10),
+        summarize(sorted(CANNABINOID_COLUMNS), 10),
+        int(chosen["sample_count"]),
+        sorted(chosen["labs"]),
+    )
 
 
 def chemistry_text(items: list[dict]) -> str:
@@ -230,30 +242,52 @@ def main() -> None:
 
     with catalog_path.open(encoding="utf-8-sig", newline="") as handle:
         catalog = [row for row in csv.DictReader(handle) if clean(row.get("Strain"))]
+    catalog_keys = {safe_match_key(row.get("Strain")) for row in catalog}
+    catalog_keys.discard("")
 
     leafly_by_name: defaultdict[str, list[dict]] = defaultdict(list)
     with leafly_path.open(encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
             key = safe_match_key(row.get("Strain"))
-            if key:
+            if key in catalog_keys:
                 leafly_by_name[key].append(row)
 
     kushy_by_name: defaultdict[str, list[dict]] = defaultdict(list)
     with kushy_path.open(encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
             key = safe_match_key(row.get("name"))
-            if key:
+            if key in catalog_keys:
                 kushy_by_name[key].append(row)
 
-    lab_by_name: defaultdict[str, list[dict]] = defaultdict(list)
+    lab_by_name: dict[str, dict] = {}
     with lab_path.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
-        chemistry_columns = [field for field in (reader.fieldnames or []) if field not in IDENTITY_COLUMNS and field not in IGNORE_CHEMISTRY_COLUMNS]
+        chemistry_columns = [
+            field for field in (reader.fieldnames or [])
+            if field not in IDENTITY_COLUMNS and field not in IGNORE_CHEMISTRY_COLUMNS
+        ]
         terpene_columns = [field for field in chemistry_columns if field not in CANNABINOID_COLUMNS]
-        for row in reader:
+        components = [*terpene_columns, *sorted(CANNABINOID_COLUMNS)]
+        matched_rows = 0
+        for row_number, row in enumerate(reader, 1):
             key = safe_match_key(row.get("Sample Name"))
-            if key:
-                lab_by_name[key].append(row)
+            if key not in catalog_keys:
+                continue
+            sample_type = clean(row.get("Sample Type")).lower()
+            if "flower" in sample_type:
+                bucket_name = "flower"
+            elif sample_type in {"archived", ""}:
+                bucket_name = "archived"
+            else:
+                continue
+            entry = lab_by_name.get(key)
+            if entry is None:
+                entry = {"flower": new_lab_bucket(), "archived": new_lab_bucket()}
+                lab_by_name[key] = entry
+            add_lab_row(entry[bucket_name], row, components)
+            matched_rows += 1
+            if matched_rows % 25000 == 0:
+                print(f"streamed {matched_rows:,} matching lab rows", flush=True)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     semantic_count = 0
@@ -268,7 +302,7 @@ def main() -> None:
             key = safe_match_key(name)
             leaf = best_record(leafly_by_name.get(key, []), ("Effects", "Flavor", "Description", "Rating")) if key else {}
             kushy = best_record(kushy_by_name.get(key, []), ("effects", "flavor", "description", "terpenes", "ailment", "breeder", "crosses")) if key else {}
-            lab_terpenes, lab_cannabinoids, lab_sample_count, labs = aggregate_lab_profile(lab_by_name.get(key, []), terpene_columns) if key else ([], [], 0, [])
+            lab_terpenes, lab_cannabinoids, lab_sample_count, labs = aggregate_lab_profile(lab_by_name.get(key), terpene_columns) if key else ([], [], 0, [])
 
             effects = merge_values(split_values(leaf.get("Effects")), split_values(kushy.get("effects")))
             flavors = merge_values(split_values(leaf.get("Flavor")), split_values(kushy.get("flavor")))
