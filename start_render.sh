@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EMBED_URL="${ARBITER_EMBED_URL:-https://api.arbiter.traut.ai/public/embed}"
+EMBED_URL="https://api.arbiter.traut.ai/public/embed"
+
+export ARBITER_EMBED_URL="$EMBED_URL"
+export FAST_ARBITER_EMBED_URL="$EMBED_URL"
 
 exec python scripts/serve_cana.py \
   --host 0.0.0.0 \
