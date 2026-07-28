@@ -5,7 +5,7 @@ services:
     plan: free
     region: oregon
     buildCommand: ./scripts/render_build.sh
-    startCommand: python scripts/serve_cana.py --host 0.0.0.0 --port $PORT --embed-url "$ARBITER_EMBED_URL"
+    startCommand: ./start_render.sh
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
