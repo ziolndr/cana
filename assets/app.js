@@ -1,25 +1,446 @@
-const $=(s)=>document.querySelector(s);
-const list=$('#results'),form=$('#searchForm'),input=$('#query'),categorySelect=$('#categoryFilter'),sentinel=$('#sentinel'),connection=$('#connection'),drawer=$('#drawer'),drawerContent=$('#drawerContent');
-const state={q:'',category:'all',offset:0,limit:24,total:0,mode:'loading',latency:null,seq:0,searchController:null,pageController:null,searching:false,paging:false,done:false,frame:0};
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function norm(v){return String(v||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
-function scoreLabel(v){return v==null?'—':Number(v).toFixed(3)}
-function money(v){return Number.isFinite(Number(v))?`$${Number(v).toFixed(2)}`:'PRICE N/A'}
-function categories(){return [...new Set(CATALOG.map(r=>r.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b))}
-for(const category of categories()){const o=document.createElement('option');o.value=category;o.textContent=category;categorySelect.appendChild(o)}
-function identityPreview(query,category,limit=50){const phrase=norm(query);let rows=category==='all'?CATALOG:CATALOG.filter(r=>norm(r.category)===norm(category));if(!phrase)return {results:rows.slice(0,limit),total:rows.length,mode:'inventory snapshot',elapsed_ms:0};const terms=phrase.split(/\s+/);const intent=new Set(['high','clean','clear','creative','social','calm','relaxed','sleep','energy','euphoric','focused','citrus','berry','earthy','diesel','body','cerebral','fog','motivated','tropical','pine','vape','flower','gummy','edible','disposable']);if(terms.some(t=>intent.has(t)))return {results:[],total:0,mode:'ARBITER ranking',elapsed_ms:null,semantic:true};const scored=rows.map(r=>{const fields=[r.name,r.brand,r.strain].map(norm);let s=0;for(const f of fields){if(f===phrase)s=Math.max(s,4);else if(f.startsWith(phrase))s=Math.max(s,3);else if(f.includes(phrase))s=Math.max(s,2)}return [s,r]}).filter(([s])=>s>0).sort((a,b)=>b[0]-a[0]||String(a[1].brand||'').localeCompare(String(b[1].brand||''))||a[1].name.localeCompare(b[1].name));return {results:scored.slice(0,limit).map(([,r])=>({...r,score:null})),total:scored.length,mode:'strict product preview',elapsed_ms:0}}
-function setSearching(active,label){state.searching=active;list.classList.toggle('is-pending',active);list.setAttribute('aria-busy',active?'true':'false');$('.live-state').classList.toggle('is-searching',active);$('#liveText').textContent=label||(active?'ranking live':'live')}
-function updateMeta(){ $('#count').textContent=Number(state.total||0).toLocaleString();$('#queryLabel').textContent=state.q?`for “${state.q}”`:'products';$('#mode').textContent=String(state.mode||'').toUpperCase();$('#latency').textContent=state.latency==null?'—':`${Math.round(state.latency)} MS` }
-function cardHTML(row,index,{offset=0}={}){const rank=offset+index+1;const meta=[row.category,row.subcategory,row.strain_type].filter(Boolean).slice(0,2).join(' · ');return `<article class="result-card" data-row="${esc(JSON.stringify(row))}"><div class="card-image"><img src="${esc(row.image)}" alt="${esc(row.name)} product image" loading="${rank<=6?'eager':'lazy'}" decoding="async"><span class="card-rank">${String(rank).padStart(2,'0')}</span><span class="card-score">${scoreLabel(row.score)}</span><span class="stock-mark">IN STOCK SNAPSHOT</span><div class="card-copy"><div class="card-brand">${esc(row.brand||row.category||'Cookies Mission Valley')}</div><h2 class="card-name">${esc(row.name)}</h2><div class="card-meta"><b class="price">${esc(money(row.price))}</b><span>${esc(meta)}</span>${row.thc_text?`<span>THC ${esc(row.thc_text)}</span>`:''}</div></div></div><button class="card-button" type="button" aria-label="Open ${esc(row.name)}"></button></article>`}
-function renderRows(rows,{replace=true,offset=0}={}){if(replace)list.innerHTML='';if(!rows.length){if(replace)list.innerHTML='<div class="empty">ARBITER IS MEASURING THIS INVENTORY QUERY…</div>';return}list.insertAdjacentHTML('beforeend',rows.map((r,i)=>cardHTML(r,i,{offset})).join(''))}
-async function fetchSearch({seq,offset=0,controller}){const started=performance.now();const response=await fetch('/api/search',{method:'POST',headers:{'content-type':'application/json'},signal:controller.signal,body:JSON.stringify({q:state.q,category:state.category,offset,limit:state.limit})});const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.message||data.error||'field unavailable');error.code=data.code||'SEARCH_FAILED';throw error}if(seq!==state.seq)throw new DOMException('stale','AbortError');data.elapsed_ms=data.elapsed_ms??performance.now()-started;return data}
-function applyData(data,{replace,offset,seq}){if(seq!==state.seq)return;const rows=data.results||[];state.total=Number(data.total||0);state.mode=data.mode||'ARBITER 72D';state.latency=data.elapsed_ms??null;renderRows(rows,{replace,offset});state.offset=replace?rows.length:offset+rows.length;state.done=rows.length<state.limit||state.offset>=state.total;updateMeta();if(!state.done)pageObserver.observe(sentinel)}
-async function runSearch(seq){if(seq!==state.seq)return;state.q=input.value.trim();state.category=categorySelect.value;state.offset=0;state.done=false;if(state.searchController)state.searchController.abort();if(state.pageController)state.pageController.abort();pageObserver.unobserve(sentinel);const preview=identityPreview(state.q,state.category,state.limit);state.total=preview.total;state.mode=preview.mode;state.latency=preview.elapsed_ms;if(preview.semantic){list.innerHTML='<div class="empty">ARBITER IS MEASURING THE COOKIES INVENTORY…</div>'}else renderRows(preview.results,{replace:true,offset:0});updateMeta();setSearching(true,'RANKING LIVE');const controller=new AbortController();state.searchController=controller;try{const data=await fetchSearch({seq,offset:0,controller});applyData(data,{replace:true,offset:0,seq});setSearching(false,'LIVE RESULT')}catch(error){if(error.name==='AbortError')return;const message=error.code==='FIELD_REBUILD_REQUIRED'?'INVENTORY FIELD MUST BE BUILT':'ARBITER QUERY ENDPOINT IS OFFLINE';connection.textContent=message;list.innerHTML=`<div class="empty"><strong>${esc(message)}</strong><br>${esc(error.message)}</div>`;state.total=0;state.mode=error.code||'offline';state.latency=null;updateMeta();setSearching(false,'NO FALSE FALLBACK')}}
-function requestSearch(){state.seq+=1;const seq=state.seq;if(state.searchController)state.searchController.abort();if(state.pageController)state.pageController.abort();cancelAnimationFrame(state.frame);state.frame=requestAnimationFrame(()=>runSearch(seq))}
-async function loadNextPage(){if(state.searching||state.paging||state.done)return;state.paging=true;pageObserver.unobserve(sentinel);const seq=state.seq,offset=state.offset,controller=new AbortController();state.pageController=controller;$('#loading').hidden=false;try{const data=await fetchSearch({seq,offset,controller});applyData(data,{replace:false,offset,seq})}catch(error){if(error.name!=='AbortError')state.done=true}finally{state.paging=false;$('#loading').hidden=true}}
-const pageObserver=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting))loadNextPage()},{rootMargin:'320px 0px'});
-function openCard(card){const row=JSON.parse(card.dataset.row);const lines=[['CATEGORY',[row.category,row.subcategory].filter(Boolean).join(' · ')],['FORMAT',row.form],['STRAIN',[row.strain,row.strain_type].filter(Boolean).join(' · ')],['PRICE',money(row.price)],['THC',row.thc_text],['CBD',row.cbd_text],['EFFECT PROFILE',(row.effects||[]).join(', ')],['FLAVOR PROFILE',(row.flavors||[]).join(', ')],['PHENOTYPE',row.phenotype],['LINEAGE',row.lineage],['SNAPSHOT STATUS','In stock when scraped']].filter(([,v])=>v);drawerContent.innerHTML=`<div class="drawer-photo"><img src="${esc(row.image)}" alt="${esc(row.name)} product image"></div><div class="drawer-body"><div class="drawer-kicker">COOKIES MISSION VALLEY · INVENTORY SNAPSHOT</div><h2>${esc(row.name)}</h2><div class="drawer-brand">${esc(row.brand||'Brand not listed')}</div>${row.description?`<p class="drawer-description">${esc(row.description)}</p>`:''}<div class="drawer-data">${lines.map(([k,v])=>`<div class="drawer-row"><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('')}</div>${row.product_url?`<a class="drawer-source" href="${esc(row.product_url)}" target="_blank" rel="noopener"><span>Open product source</span><span>↗</span></a>`:''}</div>`;drawer.classList.add('open');drawer.setAttribute('aria-hidden','false');document.body.style.overflow='hidden'}
-function closeDrawer(){drawer.classList.remove('open');drawer.setAttribute('aria-hidden','true');document.body.style.overflow=''}
-form.addEventListener('submit',e=>{e.preventDefault();requestSearch()});input.addEventListener('input',e=>{if(!e.isComposing)requestSearch()});input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();requestSearch()}});categorySelect.addEventListener('change',requestSearch);document.querySelectorAll('[data-query]').forEach(b=>b.addEventListener('click',()=>{input.value=b.dataset.query||'';input.focus();requestSearch()}));list.addEventListener('click',e=>{const card=e.target.closest('.result-card');if(card)openCard(card)});drawer.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closeDrawer));document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
-async function readManifest(){try{const response=await fetch('/api/manifest',{cache:'no-store'});if(!response.ok)throw new Error();const manifest=await response.json();connection.textContent=`${Number(manifest.count||0).toLocaleString()} PRODUCTS · 72D · ${manifest.field_ready?'FIELD READY':'REBUILD REQUIRED'} · ${manifest.embed_ready?'QUERY EMBED ONLINE':'QUERY EMBED OFFLINE'}`;}catch(_){connection.textContent='LOCAL INVENTORY FIELD'}}
-readManifest();requestSearch();
+const $ = (selector) => document.querySelector(selector);
+
+const list = $('#results');
+const form = $('#searchForm');
+const input = $('#query');
+const categorySelect = $('#typeFilter');
+const sentinel = $('#sentinel');
+const connection = $('#connection');
+const drawer = $('#drawer');
+const drawerContent = $('#drawerContent');
+
+const state = {
+  products: [],
+  vectors: null,
+  count: 0,
+  dim: 72,
+  useFreq: true,
+  embedUrls: [],
+  seq: 0,
+  q: '',
+  category: 'all',
+  ranked: [],
+  offset: 0,
+  limit: 50,
+  latency: null,
+  mode: 'LOADING',
+  searching: 0,
+};
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char]));
+}
+
+function normalize(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function productImage(row) {
+  let image = row.image || row.image_url || row.asset || row.photo || '';
+  if (!image && row.image_filename) image = `/assets/inventory/${row.image_filename}`;
+  if (image && !image.startsWith('/') && !/^https?:\/\//i.test(image)) {
+    image = image.includes('/') ? `/${image.replace(/^\.?\//, '')}` : `/assets/inventory/${image}`;
+  }
+  return image;
+}
+
+function productCategory(row) {
+  return row.category || row.type || row.format || 'Uncategorized';
+}
+
+function productSubtype(row) {
+  return row.subcategory || row.subtype || row.product_type || row.format || '';
+}
+
+function money(value) {
+  if (value == null || value === '') return '';
+  const numeric = Number(String(value).replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(numeric) ? `$${numeric.toFixed(2)}` : String(value);
+}
+
+function setSearching(active) {
+  state.searching += active ? 1 : -1;
+  state.searching = Math.max(0, state.searching);
+  const busy = state.searching > 0;
+  list.classList.toggle('is-pending', busy);
+  list.setAttribute('aria-busy', busy ? 'true' : 'false');
+  $('.live-state').classList.toggle('is-searching', busy);
+  $('#liveText').textContent = busy ? 'RANKING LIVE' : 'LIVE RESULT';
+}
+
+function updateMeta() {
+  $('#count').textContent = Number(state.count || 0).toLocaleString();
+  $('#queryLabel').textContent = state.q ? `FOR “${state.q.toUpperCase()}”` : 'PRODUCTS';
+  $('#mode').textContent = state.mode;
+  $('#latency').textContent = state.latency == null ? '—' : `${Math.round(state.latency)} MS`;
+}
+
+function cardHTML(entry, position) {
+  const row = entry.row;
+  const rank = position + 1;
+  const image = productImage(row);
+  const category = productCategory(row);
+  const subtype = productSubtype(row);
+  const score = entry.score == null ? '—' : Number(entry.score).toFixed(3);
+  const brand = row.brand || row.vendor || '';
+  const price = money(row.price);
+  const kicker = [brand, category, subtype].filter(Boolean).join(' · ');
+
+  return `<article class="result-card"
+      data-index="${entry.index}"
+      data-score="${esc(score)}">
+    <div class="card-image">
+      ${image
+        ? `<img src="${esc(image)}" alt="${esc(row.name || 'Cannabis product')} product image"
+             loading="${rank <= 12 ? 'eager' : 'lazy'}" decoding="async">`
+        : ''}
+      <span class="card-rank">${String(rank).padStart(2, '0')}</span>
+      <span class="card-score">${esc(score)}</span>
+      <div class="card-copy">
+        <span class="card-type">${esc(kicker || 'IN STOCK SNAPSHOT')}</span>
+        <h2 class="card-name">${esc(row.name || row.title || 'Untitled product')}</h2>
+        <span class="card-id">${esc([price, category, subtype].filter(Boolean).join(' · '))}</span>
+      </div>
+    </div>
+    <button class="card-button" type="button"
+      aria-label="Open ${esc(row.name || row.title || 'product')}"></button>
+  </article>`;
+}
+
+function renderPage() {
+  const page = state.ranked.slice(0, state.offset + state.limit);
+  if (!page.length) {
+    list.innerHTML = '<div class="empty">NO PRODUCTS MATCH THIS INVENTORY FILTER</div>';
+    return;
+  }
+  list.innerHTML = page.map((entry, index) => cardHTML(entry, index)).join('');
+}
+
+function initialRanking() {
+  const category = normalize(state.category);
+  const ranked = [];
+  for (let index = 0; index < state.products.length; index += 1) {
+    const row = state.products[index];
+    if (category !== 'all' && normalize(productCategory(row)) !== category) continue;
+    ranked.push({ index, row, score: null });
+  }
+  return ranked;
+}
+
+function parseVectorResponse(data) {
+  let vectors = data?.vectors || data?.embeddings || data?.data;
+  if (vectors && !Array.isArray(vectors) && typeof vectors === 'object') {
+    vectors = vectors.vectors || vectors.embeddings || vectors.data;
+  }
+  let first = Array.isArray(vectors) ? vectors[0] : null;
+  if (first && !Array.isArray(first) && typeof first === 'object') {
+    first = first.embedding || first.vector;
+  }
+  if (!Array.isArray(first) && Array.isArray(data?.embedding)) first = data.embedding;
+  if (!Array.isArray(first) && Array.isArray(data?.vector)) first = data.vector;
+  if (!Array.isArray(first) || first.length !== state.dim) {
+    throw new Error(`ARBITER returned ${Array.isArray(first) ? first.length : 'no'} dimensions`);
+  }
+  const out = new Float32Array(first);
+  let norm = 0;
+  for (let i = 0; i < out.length; i += 1) norm += out[i] * out[i];
+  norm = Math.sqrt(norm) || 1;
+  for (let i = 0; i < out.length; i += 1) out[i] /= norm;
+  return out;
+}
+
+async function embedDirect(query) {
+  let lastError = null;
+  for (const url of state.embedUrls) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        cache: 'no-store',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ texts: [query], use_freq: state.useFreq }),
+      });
+      if (!response.ok) throw new Error(`${response.status} from ${url}`);
+      return parseVectorResponse(await response.json());
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('No direct ARBITER endpoint is configured');
+}
+
+function rankVector(queryVector) {
+  const category = normalize(state.category);
+  const ranked = [];
+  const vectors = state.vectors;
+  const dim = state.dim;
+
+  for (let index = 0; index < state.products.length; index += 1) {
+    const row = state.products[index];
+    if (category !== 'all' && normalize(productCategory(row)) !== category) continue;
+
+    const base = index * dim;
+    let score = 0;
+    for (let axis = 0; axis < dim; axis += 1) {
+      score += vectors[base + axis] * queryVector[axis];
+    }
+    ranked.push({ index, row, score });
+  }
+
+  ranked.sort((a, b) => b.score - a.score || a.index - b.index);
+  return ranked;
+}
+
+async function serverFallback(query, requestId, started) {
+  const response = await fetch('/api/search', {
+    method: 'POST',
+    cache: 'no-store',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      q: query,
+      category: state.category,
+      type: state.category,
+      offset: 0,
+      limit: state.limit,
+    }),
+  });
+  if (!response.ok) throw new Error(`same-origin search returned ${response.status}`);
+  const data = await response.json();
+  if (requestId !== state.seq) return;
+
+  const results = data.results || [];
+  state.ranked = results.map((row, index) => ({
+    index,
+    row,
+    score: row.score ?? null,
+  }));
+  state.count = Number(data.total ?? results.length);
+  state.offset = state.limit;
+  state.latency = data.elapsed_ms ?? performance.now() - started;
+  state.mode = data.mode || 'ARBITER 72D';
+  renderPage();
+  updateMeta();
+}
+
+async function runSearch() {
+  const requestId = ++state.seq;
+  const query = input.value.trim();
+  state.q = query;
+  state.category = categorySelect.value;
+  state.offset = state.limit;
+
+  if (!query) {
+    state.ranked = initialRanking();
+    state.count = state.ranked.length;
+    state.latency = 0;
+    state.mode = 'LOCAL 72D FIELD';
+    renderPage();
+    updateMeta();
+    return;
+  }
+
+  // Every input event starts a genuine embedding request immediately.
+  // Requests are never debounced, coalesced, or canceled.
+  setSearching(true);
+  const started = performance.now();
+
+  try {
+    const queryVector = await embedDirect(query);
+    if (requestId !== state.seq) return;
+
+    state.ranked = rankVector(queryVector);
+    state.count = state.ranked.length;
+    state.latency = performance.now() - started;
+    state.mode = 'ARBITER 72D · BROWSER RANK';
+    renderPage();
+    updateMeta();
+  } catch (directError) {
+    try {
+      await serverFallback(query, requestId, started);
+    } catch (fallbackError) {
+      if (requestId === state.seq) {
+        connection.textContent = 'FIELD READY · QUERY EMBED OFFLINE';
+        state.mode = 'QUERY EMBED OFFLINE';
+        state.latency = performance.now() - started;
+        updateMeta();
+      }
+      console.error('Direct ARBITER failed:', directError);
+      console.error('Fallback search failed:', fallbackError);
+    }
+  } finally {
+    setSearching(false);
+  }
+}
+
+function populateCategories() {
+  const categories = [...new Set(state.products.map(productCategory).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  categorySelect.innerHTML = '<option value="all">ALL CATEGORIES</option>' +
+    categories.map((category) =>
+      `<option value="${esc(category)}">${esc(category).toUpperCase()}</option>`
+    ).join('');
+}
+
+function openCard(card) {
+  const index = Number(card.dataset.index);
+  const row = state.products[index];
+  if (!row) return;
+
+  const image = productImage(row);
+  const name = row.name || row.title || 'Untitled product';
+  const category = productCategory(row);
+  const subtype = productSubtype(row);
+  const brand = row.brand || row.vendor || '';
+  const price = money(row.price);
+  const description = row.description || row.profile || row.experience || '';
+  const sourceUrl = row.url || row.source_url || row.product_url || '';
+
+  drawerContent.innerHTML = `<div class="drawer-photo">
+      ${image ? `<img src="${esc(image)}" alt="${esc(name)} product image">` : ''}
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-kicker">IN STOCK SNAPSHOT · ${esc(category)}</div>
+      <h2>${esc(name)}</h2>
+      ${description ? `<p>${esc(description)}</p>` : ''}
+      <div class="drawer-data">
+        <div class="drawer-row"><span>BRAND</span><strong>${esc(brand || '—')}</strong></div>
+        <div class="drawer-row"><span>PRICE</span><strong>${esc(price || '—')}</strong></div>
+        <div class="drawer-row"><span>CATEGORY</span><strong>${esc(category)}</strong></div>
+        <div class="drawer-row"><span>FORMAT</span><strong>${esc(subtype || '—')}</strong></div>
+        <div class="drawer-row"><span>RESONANCE</span><strong>${esc(card.dataset.score)}</strong></div>
+      </div>
+      ${sourceUrl
+        ? `<a class="drawer-source" href="${esc(sourceUrl)}" target="_blank" rel="noopener">
+             <span>OPEN PRODUCT</span><span>↗</span>
+           </a>`
+        : ''}
+    </div>`;
+
+  drawer.classList.add('open');
+  drawer.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrawer() {
+  drawer.classList.remove('open');
+  drawer.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+
+async function getJson(url) {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`${url} returned ${response.status}`);
+  return response.json();
+}
+
+async function initialize() {
+  const [browserManifest, products, vectorBuffer, health, apiManifest] = await Promise.all([
+    getJson('/field/browser_field.json'),
+    getJson('/data/browser_products.json'),
+    fetch('/field/browser_vectors.f32', { cache: 'force-cache' }).then((response) => {
+      if (!response.ok) throw new Error(`vector field returned ${response.status}`);
+      return response.arrayBuffer();
+    }),
+    getJson('/health').catch(() => ({})),
+    getJson('/api/manifest').catch(() => ({})),
+  ]);
+
+  state.products = products;
+  state.count = Number(browserManifest.count || products.length);
+  state.dim = Number(browserManifest.dim || 72);
+  state.useFreq = browserManifest.use_freq !== false;
+  state.vectors = new Float32Array(vectorBuffer);
+
+  if (state.products.length !== state.count) {
+    throw new Error(`Product count ${state.products.length} does not match ${state.count}`);
+  }
+  if (state.vectors.length !== state.count * state.dim) {
+    throw new Error(`Vector length ${state.vectors.length} does not match ${state.count} × ${state.dim}`);
+  }
+
+  const candidates = [
+    health.fast_embed_url,
+    apiManifest.fast_embed_url,
+    health.embed_url,
+    apiManifest.embed_url,
+    browserManifest.embed_url,
+  ].filter(Boolean);
+
+  state.embedUrls = [...new Set(candidates)]
+    .filter((url) => !url.includes('cana-embed.actualgeneralintelligence.com'));
+
+  populateCategories();
+  state.ranked = initialRanking();
+  state.offset = state.limit;
+  state.count = state.ranked.length;
+  state.mode = 'LOCAL 72D FIELD';
+  state.latency = 0;
+  renderPage();
+  updateMeta();
+
+  connection.textContent =
+    `${Number(browserManifest.count).toLocaleString()} PRODUCTS · 72D · FIELD READY · ` +
+    (state.embedUrls.length ? 'QUERY EMBED ONLINE' : 'QUERY EMBED FALLBACK');
+
+  input.focus();
+}
+
+form.addEventListener('submit', (event) => {
+  event.preventDefault();
+  runSearch();
+});
+
+input.addEventListener('input', (event) => {
+  if (!event.isComposing) runSearch();
+});
+
+input.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    runSearch();
+  }
+});
+
+categorySelect.addEventListener('change', runSearch);
+
+document.querySelectorAll('[data-query]').forEach((button) => {
+  button.addEventListener('click', () => {
+    input.value = button.dataset.query || '';
+    input.focus();
+    runSearch();
+  });
+});
+
+list.addEventListener('click', (event) => {
+  const card = event.target.closest('.result-card');
+  if (card) openCard(card);
+});
+
+drawer.querySelectorAll('[data-close]').forEach((button) => {
+  button.addEventListener('click', closeDrawer);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && drawer.classList.contains('open')) closeDrawer();
+});
+
+const pageObserver = new IntersectionObserver((entries) => {
+  if (!entries.some((entry) => entry.isIntersecting)) return;
+  if (state.offset >= state.ranked.length) return;
+  state.offset += state.limit;
+  renderPage();
+}, { rootMargin: '320px 0px' });
+
+pageObserver.observe(sentinel);
+
+initialize().catch((error) => {
+  console.error(error);
+  connection.textContent = 'FIELD LOAD FAILED';
+  list.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
+});
