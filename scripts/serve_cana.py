@@ -315,15 +315,31 @@ class EmbedRouter:
             return False
 
 
+class CanaHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+    request_queue_size = 256
+
+
 class App(SimpleHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
     def log_message(self, fmt, *args):
         if self.path.startswith("/api/") or self.path == "/health":
             return
         super().log_message(fmt, *args)
 
     def end_headers(self):
+        path = self.path.split("?", 1)[0]
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Cache-Control", "no-store" if self.path.startswith("/api/") else "public, max-age=300")
+
+        if path.startswith("/api/") or path == "/health":
+            cache_control = "no-store"
+        elif path.startswith("/assets/inventory/"):
+            cache_control = "public, max-age=31536000, immutable"
+        else:
+            cache_control = "public, max-age=300"
+
+        self.send_header("Cache-Control", cache_control)
         super().end_headers()
 
     def do_OPTIONS(self):
@@ -552,7 +568,7 @@ def main() -> None:
     descriptor_strings = [descriptor_text(row) for row in rows]
 
     os.chdir(ROOT)
-    server = ThreadingHTTPServer((args.host, args.port), App)
+    server = CanaHTTPServer((args.host, args.port), App)
     server.daemon_threads = True
     server.rows = rows
     server.vectors = vectors
