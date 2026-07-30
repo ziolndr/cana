@@ -1,9 +1,31 @@
 {
   "schema_version": "cana-cookies-browser-field-v1",
+  "source_fingerprint": "0b8839f92b3c161bbcd3d3355ad9c15bd0246ebb0db5699e0923e56cfcffb83b",
   "count": 8284,
   "dim": 72,
+  "embed_url": "https://cana-embed.actualgeneralintelligence.com/v1/embed",
   "use_freq": true,
   "source": "Cookies Mission Valley inventory snapshot",
+  "source_url": "https://missionvalley.cookies.co",
+  "source_snapshot": {
+    "source": "https://missionvalley.cookies.co",
+    "scraped_at": "2026-07-27T20:25:47.976096+00:00",
+    "raw_products": 9466,
+    "deduped_products": 9466,
+    "searchable_products": 8284,
+    "missing_image_products": 1182,
+    "in_stock_only": true,
+    "image_policy": "Only locally frozen product images are searchable"
+  },
+  "built_at": "2026-07-27T21:51:42.625589+00:00",
+  "embedding_policy": "Names and brands stripped from free text while controlled category, subcategory, form, and strain-type vocabulary is preserved; price, stock, images, and IDs excluded",
+  "image_policy": "Every searchable result has a frozen local product image",
+  "resume_policy": "Per-row durable checkpointing; failed large requests split automatically",
   "scraped_at": "2026-07-27T20:25:47.976096+00:00",
-  "vector_source": "/Users/joeltroutii/Downloads/CANA_COOKIES_INVENTORY_PUSH/field/vectors.npy"
+  "vector_source": "/Users/joeltroutii/Downloads/CANA_COOKIES_INVENTORY_PUSH/field/vectors.npy",
+  "catalog_count": 8284,
+  "dimension": 72,
+  "fast_embed_url": "https://cana-embed.actualgeneralintelligence.com/v1/embed",
+  "design_schema": "cana-effect-design-v1",
+  "design_ready": true
 }

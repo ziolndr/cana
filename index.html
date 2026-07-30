@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#080a08">
-  <title>CANA — Cookies Mission Valley Inventory</title>
-  <meta name="description" content="Live semantic search across the frozen Cookies Mission Valley shelf inventory, ranked through ARBITER geometry.">
+  <title>CANA — Effect Design Field</title>
+  <meta name="description" content="Search existing cannabis profiles and design reproducible cultivar or natural-product effect architectures through ARBITER 72D geometry.">
   <style>
 @import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
@@ -149,6 +149,7 @@ a{color:inherit}
 }
 
 </style>
+  <link rel="stylesheet" href="assets/cana-design.css?v=effect-design-1">
 </head>
 <body>
   <header class="topbar">
@@ -161,6 +162,12 @@ a{color:inherit}
         <span>REAL SHELF INVENTORY / 72D</span>
       </div>
     </div>
+<!-- CANA_DESIGN_V1:MODE_NAV -->
+    <nav class="cana-mode-nav" aria-label="CANA mode">
+      <button type="button" data-cana-mode="find" aria-pressed="true">FIND</button>
+      <button type="button" data-cana-mode="design" aria-pressed="false">DESIGN</button>
+    </nav>
+    <!-- /CANA_DESIGN_V1:MODE_NAV -->
     <div class="system-status" id="connection">LOADING FIELD</div>
   </header>
 
@@ -197,6 +204,122 @@ a{color:inherit}
         </div>
       </div>
     </section>
+<!-- CANA_DESIGN_V1:LAB -->
+    <section class="design-lab" id="designLab" aria-label="CANA effect design" hidden>
+      <div class="design-intro">
+        <div>
+          <span class="design-kicker">ARBITER / EFFECT DESIGN FIELD</span>
+          <h1>Design the state.<br>Find the chemistry.</h1>
+          <p>Measure a desired human state against the existing CANA field and a controlled library of natural-product architectures. Produce a real cultivar development path, a botanical analogue, or both.</p>
+        </div>
+        <aside class="design-principle">
+          <span>THE DESIGN UNIT</span>
+          <strong>State × chemistry × format × context × verified outcome.</strong>
+        </aside>
+      </div>
+
+      <form class="design-form-shell" id="designForm" autocomplete="off">
+        <div class="design-form">
+          <label class="design-field" for="designIntent">
+            <span>DESCRIBE THE EXACT STATE</span>
+            <textarea id="designIntent" spellcheck="false" placeholder="warm social confidence, vivid music, clear speech, no racing thoughts, two-hour window"></textarea>
+          </label>
+          <label class="design-field" for="designPath">
+            <span>DEVELOPMENT PATH</span>
+            <select id="designPath">
+              <option value="both">CULTIVAR + BOTANICAL</option>
+              <option value="cultivar">REAL CULTIVAR</option>
+              <option value="botanical">NATURAL-PRODUCT ANALOGUE</option>
+            </select>
+          </label>
+          <label class="design-field" for="designThc">
+            <span>THC ARCHITECTURE</span>
+            <select id="designThc">
+              <option value="unconstrained but measured">MEASURED / UNCONSTRAINED</option>
+              <option value="zero THC">ZERO THC</option>
+              <option value="trace THC">TRACE THC</option>
+              <option value="low THC with preserved function">LOW THC / FUNCTIONAL</option>
+              <option value="balanced THC and CBD">BALANCED THC / CBD</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="design-form">
+          <label class="design-field" for="designDuration">
+            <span>DESIRED WINDOW</span>
+            <select id="designDuration">
+              <option value="60 to 120 minutes">60–120 MINUTES</option>
+              <option value="under 60 minutes">UNDER 60 MINUTES</option>
+              <option value="2 to 4 hours">2–4 HOURS</option>
+              <option value="overnight">OVERNIGHT</option>
+            </select>
+          </label>
+          <label class="design-field" for="designRoute">
+            <span>FORMAT / ROUTE</span>
+            <select id="designRoute">
+              <option value="format agnostic; select by onset and safety">FORMAT AGNOSTIC</option>
+              <option value="inhaled flower or vapor with rapid onset">FLOWER / VAPOR</option>
+              <option value="oral beverage or food format">BEVERAGE / FOOD</option>
+              <option value="sublingual standardized extract">SUBLINGUAL</option>
+              <option value="aromatic non-ingested format">AROMATIC / NON-INGESTED</option>
+            </select>
+          </label>
+          <div class="design-field">
+            <span class="design-guardrail-title">HARD EXCLUSIONS</span>
+            <div class="design-guardrails">
+              <label class="design-check"><input type="checkbox" name="guardrail" value="anxiety or racing thoughts">ANXIETY</label>
+              <label class="design-check"><input type="checkbox" name="guardrail" value="sleepiness or heavy sedation">SEDATION</label>
+              <label class="design-check"><input type="checkbox" name="guardrail" value="appetite increase">APPETITE</label>
+              <label class="design-check"><input type="checkbox" name="guardrail" value="verbal or working-memory impairment">IMPAIRMENT</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="design-actions">
+          <div class="design-examples" aria-label="Effect design examples">
+            <button type="button" data-design-example="social warmth and musical immersion with clear speech and no anxiety">SOCIAL / MUSIC</button>
+            <button type="button" data-design-example="calm body, preserved working memory, low appetite and no sleepiness">CALM / FUNCTIONAL</button>
+            <button type="button" data-design-example="bright creative attention, tactile vividness and a clean two-hour finish">CREATIVE / CLEAN</button>
+          </div>
+          <button class="design-submit" id="designSubmit" type="submit">MEASURE DESIGN</button>
+        </div>
+      </form>
+
+      <div class="design-status" id="designStatus"><span>READY TO DEFINE A STATE</span><strong>ARBITER / 72D</strong></div>
+
+      <section class="design-output" id="designOutput" hidden>
+        <div class="design-grid">
+          <article class="design-panel design-panel--target">
+            <div>
+              <div class="design-panel-head"><span>01 / TARGET STATE</span><strong>MEASURED SPECIFICATION</strong></div>
+              <h2 class="design-target-text" id="designTargetText"></h2>
+            </div>
+            <div class="design-signature" id="designSignature"></div>
+          </article>
+
+          <article class="design-panel design-panel--benchmarks" id="designBenchmarkPanel">
+            <div class="design-panel-head"><span>02 / EXISTING FIELD</span><strong>PHENOTYPE BENCHMARKS</strong></div>
+            <div class="design-list" id="designBenchmarks"></div>
+          </article>
+
+          <article class="design-panel design-panel--natural" id="designNaturalPanel">
+            <div class="design-panel-head"><span>03 / NATURAL ARCHITECTURE</span><strong>MEASURED CANDIDATES</strong></div>
+            <div class="design-list" id="designNatural"></div>
+          </article>
+
+          <article class="design-panel design-panel--program">
+            <div class="design-panel-head"><span>04 / DEVELOPMENT</span><strong id="designProgramLabel">DUAL DEVELOPMENT PROGRAM</strong></div>
+            <div class="design-program" id="designProgram"></div>
+          </article>
+        </div>
+        <div class="design-foot">
+          <span id="designElapsed">—</span>
+          <span>RESEARCH + PRODUCT-DEVELOPMENT SPECIFICATION · NO CONSUMER DOSING OR MIXING INSTRUCTIONS</span>
+          <button class="design-export" id="designExport" type="button">EXPORT SPEC</button>
+        </div>
+      </section>
+    </section>
+    <!-- /CANA_DESIGN_V1:LAB -->
 
     <section class="field-shell" aria-label="CANA results">
       <div id="results" class="results-grid" aria-live="polite" aria-busy="false"></div>
@@ -214,5 +337,6 @@ a{color:inherit}
   </aside>
 
       <script src="assets/app.js?v=browser72d-1"></script>
+      <script src="assets/cana-design.js?v=effect-design-1"></script>
 </body>
 </html>
